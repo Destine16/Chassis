@@ -211,6 +211,27 @@ u_raw -> wheel_speed_radps
 离线解析脚本见：
 - [tools/sysid_dump_to_csv.py](tools/sysid_dump_to_csv.py)
 
+离线系统辨识脚本见：
+- [tools/sysid_identify.py](tools/sysid_identify.py)
+
+系统辨识说明见：
+- [docs/sysid_identify.md](docs/sysid_identify.md)
+
+PID 整定工具见：
+- [tools/pid_tune.py](tools/pid_tune.py)
+
+PID 整定说明见：
+- [docs/pid_tune.md](docs/pid_tune.md)
+
+当前工程的科学计算依赖安装在项目内虚拟环境：
+- `.venv`
+
+后续运行分析类脚本时，优先使用：
+
+```bash
+.venv/bin/python tools/...
+```
+
 ## 导航观测帧协议
 
 当前电控通过 `USB CDC` 周期发送一类固定长度观测帧给导航。

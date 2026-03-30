@@ -171,7 +171,7 @@ continue
 使用方式：
 
 ```bash
-python3 tools/sysid_dump_to_csv.py /tmp/sysid_meta.bin /tmp/sysid_buf.bin -o /tmp/sysid.csv
+.venv/bin/python tools/sysid_dump_to_csv.py /tmp/sysid_meta.bin /tmp/sysid_buf.bin -o /tmp/sysid.csv
 ```
 
 脚本会：
@@ -179,6 +179,10 @@ python3 tools/sysid_dump_to_csv.py /tmp/sysid_meta.bin /tmp/sysid_buf.bin -o /tm
 - 按 `sample_hz` 还原时间轴
 - 输出 `sample_idx,t_s,u_raw,speed_radps`
 - 在 CSV 头部附带一段元数据
+
+如果你接下来要直接做离线系统辨识，继续看：
+
+- [docs/sysid_identify.md](sysid_identify.md)
 
 ## 时间轴恢复
 
