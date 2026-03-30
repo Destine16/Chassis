@@ -1,0 +1,159 @@
+#include "ctrl_chassis.h"
+
+#include <string.h>
+
+#include "robot_def.h"
+#include "omni_chassis_kinematics.h"
+#include "drv_can_motor.h"
+#include "drv_m3508.h"
+#include "pid.h"
+#include "ramp.h"
+#include "soft_limit.h"
+#include "srv_chassis.h"
+#include "srv_motor.h"
+
+typedef struct
+{
+    pid_controller_t speed_pid[COMMON_WHEEL_COUNT];
+    ramp_filter_t vx_ramp;
+    ramp_filter_t vy_ramp;
+    ramp_filter_t wz_ramp;
+} ctrl_chassis_context_t;
+
+static ctrl_chassis_context_t g_ctrl_ctx;
+
+/*
+ * 默认增益上电为 0，避免未调参时直接输出。
+ * 积分和输出限制仍保留默认保护值。
+ * 运行中可在调试器里直接修改这组全局变量，无需重新编译烧录。
+ */
+ctrl_chassis_speed_pid_param_t g_ctrl_chassis_speed_pid_param = {
+    .kp = 0.0f,
+    .ki = 0.0f,
+    .kd = 0.0f,
+    .integral_limit = APP_CFG_SPEED_PID_INT_LIMIT,
+    .output_limit = APP_CFG_SPEED_PID_OUT_LIMIT,
+};
+
+static void ctrl_chassis_sync_speed_pid_params(void)
+{
+    uint32_t index = 0U;
+
+    while (index < COMMON_WHEEL_COUNT)
+    {
+        g_ctrl_ctx.speed_pid[index].kp = g_ctrl_chassis_speed_pid_param.kp;
+        g_ctrl_ctx.speed_pid[index].ki = g_ctrl_chassis_speed_pid_param.ki;
+        g_ctrl_ctx.speed_pid[index].kd = g_ctrl_chassis_speed_pid_param.kd;
+        g_ctrl_ctx.speed_pid[index].integral_limit = g_ctrl_chassis_speed_pid_param.integral_limit;
+        g_ctrl_ctx.speed_pid[index].output_limit = g_ctrl_chassis_speed_pid_param.output_limit;
+        index++;
+    }
+}
+
+void ctrl_chassis_init(void)
+{
+    uint32_t index = 0U;
+
+    /* 四个轮子各自维护独立速度 PID。 */
+    while (index < COMMON_WHEEL_COUNT)
+    {
+        pid_init(&g_ctrl_ctx.speed_pid[index],
+                 g_ctrl_chassis_speed_pid_param.kp,
+                 g_ctrl_chassis_speed_pid_param.ki,
+                 g_ctrl_chassis_speed_pid_param.kd,
+                 g_ctrl_chassis_speed_pid_param.integral_limit,
+                 g_ctrl_chassis_speed_pid_param.output_limit);
+        index++;
+    }
+
+    /* 对底盘三自由度命令分别做斜坡限制。 */
+    ramp_init(&g_ctrl_ctx.vx_ramp, APP_CFG_CMD_RAMP_VX_MPS2);
+    ramp_init(&g_ctrl_ctx.vy_ramp, APP_CFG_CMD_RAMP_VY_MPS2);
+    ramp_init(&g_ctrl_ctx.wz_ramp, APP_CFG_CMD_RAMP_WZ_RADPS2);
+}
+
+void ctrl_chassis_stop(void)
+{
+    wheel_targets_t targets;
+    uint32_t index = 0U;
+
+    /* SAFE 模式下重置控制器内部状态，避免退出 SAFE 时残留积分。 */
+    memset(&targets, 0, sizeof(targets));
+
+    while (index < COMMON_WHEEL_COUNT)
+    {
+        pid_reset(&g_ctrl_ctx.speed_pid[index]);
+        index++;
+    }
+
+    ramp_reset(&g_ctrl_ctx.vx_ramp, 0.0f);
+    ramp_reset(&g_ctrl_ctx.vy_ramp, 0.0f);
+    ramp_reset(&g_ctrl_ctx.wz_ramp, 0.0f);
+    srv_motor_zero_targets();
+    srv_chassis_stop();
+    (void)drv_can_motor_send_chassis_currents(0, 0, 0, 0);
+    srv_chassis_set_wheel_targets(&targets);
+}
+
+void ctrl_chassis_execute(app_mode_t mode, const chassis_cmd_t *final_cmd)
+{
+    chassis_cmd_t limited_cmd = *final_cmd;
+    chassis_cmd_t actual_cmd = {0};
+    wheel_targets_t targets;
+    float actual_wheel_speed_radps[COMMON_WHEEL_COUNT];
+    int16_t current_raw[COMMON_WHEEL_COUNT];
+    float dt_s = 1.0f / (float)APP_CFG_CONTROL_HZ;
+    uint32_t index = 0U;
+
+    memset(&targets, 0, sizeof(targets));
+    memset(actual_wheel_speed_radps, 0, sizeof(actual_wheel_speed_radps));
+    memset(current_raw, 0, sizeof(current_raw));
+
+    /* SAFE 模式直接清零所有输出。 */
+    if (mode == APP_MODE_SAFE)
+    {
+        ctrl_chassis_stop();
+        return;
+    }
+
+    /* 允许调试器直接改全局 PID 参数，下一拍自动同步到四个轮子。 */
+    ctrl_chassis_sync_speed_pid_params();
+
+    /* 先做命令斜坡，再做幅值限制。 */
+    limited_cmd.vx_mps = ramp_apply(&g_ctrl_ctx.vx_ramp, limited_cmd.vx_mps, dt_s);
+    limited_cmd.vy_mps = ramp_apply(&g_ctrl_ctx.vy_ramp, limited_cmd.vy_mps, dt_s);
+    limited_cmd.wz_radps = ramp_apply(&g_ctrl_ctx.wz_ramp, limited_cmd.wz_radps, dt_s);
+    soft_limit_chassis_cmd(&limited_cmd);
+
+    /* 将车体速度命令解算成四个轮子的角速度参考。 */
+    omni_chassis_kinematics_inverse(&limited_cmd, targets.wheel_speed_ref_radps);
+    (void)omni_chassis_desaturate_wheel_speeds(targets.wheel_speed_ref_radps, APP_CFG_MAX_WHEEL_SPEED_RADPS);
+    omni_chassis_kinematics_forward(targets.wheel_speed_ref_radps, &limited_cmd);
+
+    while (index < COMMON_WHEEL_COUNT)
+    {
+        motor_feedback_t feedback = srv_motor_get_feedback((chassis_wheel_id_t)index);
+
+        /* 底盘轮第一版只做速度外环，PID 输出直接作为 C620 电流给定。 */
+        float current_cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
+                                       targets.wheel_speed_ref_radps[index],
+                                       feedback.wheel_speed_radps,
+                                       dt_s);
+
+        current_cmd = soft_limit_symmetric(current_cmd, APP_CFG_C620_CURRENT_LIMIT);
+        actual_wheel_speed_radps[index] = feedback.wheel_speed_radps;
+        targets.current_cmd[index] = current_cmd;
+        current_raw[index] = drv_m3508_current_cmd_to_raw(current_cmd);
+        index++;
+    }
+
+    omni_chassis_kinematics_forward(actual_wheel_speed_radps, &actual_cmd);
+
+    /* 所有电流给定统一在这里一次性下发，保证唯一最终输出口。 */
+    (void)drv_can_motor_send_chassis_currents(current_raw[0], current_raw[1], current_raw[2], current_raw[3]);
+    srv_motor_set_targets(targets.wheel_speed_ref_radps, targets.current_cmd);
+    srv_chassis_set_final_cmd(final_cmd);
+    srv_chassis_set_limited_cmd(&limited_cmd);
+    srv_chassis_set_actual_cmd(&actual_cmd);
+    srv_chassis_set_wheel_targets(&targets);
+}
