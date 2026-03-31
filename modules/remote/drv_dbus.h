@@ -12,7 +12,7 @@
 typedef struct
 {
     uint16_t ch[4]; /* ch0/ch1 = 右横/右纵，ch2/ch3 = 左横/左纵。 */
-    uint8_t s1;     /* 左拨杆，当前用于 SAFE/MANUAL/AUTO 模式选择。 */
+    uint8_t s1;     /* 左拨杆，当前用于 SAFE/MANUAL 模式选择。 */
     uint8_t s2;     /* 右拨杆，当前底盘未使用。 */
     int16_t mouse_x;
     int16_t mouse_y;
@@ -23,6 +23,15 @@ typedef struct
     uint32_t sequence;
 } drv_dbus_frame_t;
 
+typedef struct
+{
+    uint32_t valid_frame_count;
+    uint32_t invalid_length_count;
+    uint32_t invalid_channel_count;
+    uint32_t invalid_switch_count;
+    uint32_t last_sequence;
+} drv_dbus_stats_t;
+
 /* 初始化 USART3 双缓冲接收。 */
 int drv_dbus_init(void);
 
@@ -31,5 +40,6 @@ void drv_dbus_irq_handler(void);
 
 /* 只返回最新一帧完整 DBUS，不保留旧帧。 */
 bool drv_dbus_read_latest(drv_dbus_frame_t *frame_out);
+void drv_dbus_get_stats(drv_dbus_stats_t *stats_out);
 
 #endif /* USER_DRIVERS_DRV_DBUS_H */

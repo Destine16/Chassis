@@ -23,14 +23,13 @@ typedef struct
 static ctrl_chassis_context_t g_ctrl_ctx;
 
 /*
- * 默认增益上电为 0，避免未调参时直接输出。
- * 积分和输出限制仍保留默认保护值。
- * 运行中可在调试器里直接修改这组全局变量，无需重新编译烧录。
+ * 默认共享速度环参数采用当前单轮辨识后验证可用的 balanced 结果，
+ * 上电即可直接进行遥控底盘测试；运行中仍可在调试器里在线修改。
  */
 ctrl_chassis_speed_pid_param_t g_ctrl_chassis_speed_pid_param = {
-    .kp = 0.0f,
-    .ki = 0.0f,
-    .kd = 0.0f,
+    .kp = 116.84735568148633f,
+    .ki = 320.5727636311219f,
+    .kd = 0.17825148011568537f,
     .integral_limit = APP_CFG_SPEED_PID_INT_LIMIT,
     .output_limit = APP_CFG_SPEED_PID_OUT_LIMIT,
 };
@@ -92,6 +91,47 @@ void ctrl_chassis_stop(void)
     srv_motor_zero_targets();
     srv_chassis_stop();
     (void)drv_can_motor_send_chassis_currents(0, 0, 0, 0);
+    srv_chassis_set_wheel_targets(&targets);
+}
+
+void ctrl_chassis_execute_single_wheel_speed(chassis_wheel_id_t wheel_id, float speed_ref_radps)
+{
+    wheel_targets_t targets;
+    int16_t current_raw[COMMON_WHEEL_COUNT];
+    float speed_ref[COMMON_WHEEL_COUNT] = {0.0f};
+    float dt_s = 1.0f / (float)APP_CFG_CONTROL_HZ;
+    uint32_t index = 0U;
+
+    memset(&targets, 0, sizeof(targets));
+    memset(current_raw, 0, sizeof(current_raw));
+    ctrl_chassis_sync_speed_pid_params();
+
+    if (wheel_id >= COMMON_WHEEL_COUNT)
+    {
+        ctrl_chassis_stop();
+        return;
+    }
+
+    speed_ref[wheel_id] = speed_ref_radps;
+
+    while (index < COMMON_WHEEL_COUNT)
+    {
+        motor_feedback_t feedback = srv_motor_get_feedback((chassis_wheel_id_t)index);
+        float cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
+                               speed_ref[index],
+                               feedback.wheel_speed_radps,
+                               dt_s);
+
+        cmd = soft_limit_symmetric(cmd, APP_CFG_C620_CURRENT_LIMIT);
+        current_raw[index] = drv_m3508_current_cmd_to_raw(cmd);
+        targets.wheel_speed_ref_radps[index] = speed_ref[index];
+        targets.current_cmd[index] = cmd;
+        index++;
+    }
+
+    (void)drv_can_motor_send_chassis_currents(current_raw[0], current_raw[1], current_raw[2], current_raw[3]);
+    srv_motor_set_targets(targets.wheel_speed_ref_radps, targets.current_cmd);
+    srv_chassis_stop();
     srv_chassis_set_wheel_targets(&targets);
 }
 

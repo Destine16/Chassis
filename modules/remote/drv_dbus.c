@@ -1,5 +1,7 @@
 #include "drv_dbus.h"
 
+#include <string.h>
+
 #include "robot.h"
 #include "robot_def.h"
 #include "bsp_uart.h"
@@ -8,6 +10,7 @@
 static drv_uart_idle_dma_t g_dbus_uart;
 static uint8_t g_dbus_rx_buffer0[APP_CFG_DBUS_FRAME_LEN];
 static uint8_t g_dbus_rx_buffer1[APP_CFG_DBUS_FRAME_LEN];
+static drv_dbus_stats_t g_dbus_stats;
 
 /* DBUS 里鼠标和键盘字段使用小端序。 */
 static uint16_t drv_dbus_read_u16_le(const uint8_t *data)
@@ -27,6 +30,8 @@ static bool drv_dbus_switch_is_valid(uint8_t value)
 
 int drv_dbus_init(void)
 {
+    memset(&g_dbus_stats, 0, sizeof(g_dbus_stats));
+
     /* RC 必须使用 DMA + 双缓冲 + IDLE，中断只通知 rcTask。 */
     drv_uart_idle_dma_init(&g_dbus_uart,
                            bsp_uart_get_handle(BSP_UART_PORT_RC),
@@ -56,8 +61,13 @@ bool drv_dbus_read_latest(drv_dbus_frame_t *frame_out)
     if (!drv_uart_idle_dma_take_latest(&g_dbus_uart, &data, &length, &sequence))
         return false;
 
+    g_dbus_stats.last_sequence = sequence;
+
     if (length != APP_CFG_DBUS_FRAME_LEN)
+    {
+        g_dbus_stats.invalid_length_count++;
         return false;
+    }
 
     /*
      * 按 DR16 常见 DBUS 位域格式解包：
@@ -94,12 +104,27 @@ bool drv_dbus_read_latest(drv_dbus_frame_t *frame_out)
     while (index < 4U)
     {
         if (!drv_dbus_channel_is_valid(frame_out->ch[index]))
+        {
+            g_dbus_stats.invalid_channel_count++;
             return false;
+        }
         index++;
     }
 
     if (!drv_dbus_switch_is_valid(frame_out->s1) || !drv_dbus_switch_is_valid(frame_out->s2))
+    {
+        g_dbus_stats.invalid_switch_count++;
         return false;
+    }
 
+    g_dbus_stats.valid_frame_count++;
     return true;
+}
+
+void drv_dbus_get_stats(drv_dbus_stats_t *stats_out)
+{
+    if (stats_out == NULL)
+        return;
+
+    *stats_out = g_dbus_stats;
 }

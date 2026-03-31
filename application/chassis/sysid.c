@@ -20,6 +20,12 @@ typedef struct
     int16_t last_applied_u_raw;
 } sysid_runtime_t;
 
+typedef struct
+{
+    bool active;
+    uint32_t wheel_id;
+} wheeltest_runtime_t;
+
 volatile uint32_t g_sysid_arm = 0U;
 volatile uint32_t g_sysid_running = 0U;
 volatile uint32_t g_sysid_hold_zero = 0U;
@@ -27,11 +33,17 @@ volatile uint32_t g_sysid_wheel_id = APP_CFG_SYSID_DEFAULT_WHEEL_ID;
 volatile int32_t g_sysid_amplitude_raw = APP_CFG_SYSID_DEFAULT_AMPLITUDE_RAW;
 volatile uint32_t g_sysid_bit_period_ms = APP_CFG_SYSID_DEFAULT_BIT_PERIOD_MS;
 volatile uint32_t g_sysid_total_bits = APP_CFG_SYSID_DEFAULT_TOTAL_BITS;
+volatile uint32_t g_wheeltest_enable = 0U;
+volatile uint32_t g_wheeltest_active = 0U;
+volatile uint32_t g_wheeltest_hold_zero = 0U;
+volatile uint32_t g_wheeltest_wheel_id = APP_CFG_SYSID_DEFAULT_WHEEL_ID;
+volatile float g_wheeltest_speed_ref_radps = 10.0f;
 
 sysid_meta_t g_sysid_meta;
 sysid_sample_t __attribute__((section(".ccmram"))) g_sysid_buffer[APP_CFG_SYSID_SAMPLE_CAPACITY];
 
 static sysid_runtime_t g_sysid_rt;
+static wheeltest_runtime_t g_wheeltest_rt;
 
 static uint32_t sysid_clamp_wheel_id(uint32_t wheel_id)
 {
@@ -87,6 +99,24 @@ static void sysid_finish_and_zero_output(void)
     ctrl_chassis_stop();
 }
 
+static void wheeltest_finish_and_zero_output(void)
+{
+    g_wheeltest_rt.active = false;
+    g_wheeltest_active = 0U;
+    g_wheeltest_enable = 0U;
+    g_wheeltest_hold_zero = 1U;
+    ctrl_chassis_stop();
+}
+
+static void wheeltest_begin(void)
+{
+    g_wheeltest_rt.active = true;
+    g_wheeltest_rt.wheel_id = sysid_clamp_wheel_id(g_wheeltest_wheel_id);
+    g_wheeltest_active = 1U;
+    g_wheeltest_hold_zero = 0U;
+    ctrl_chassis_stop();
+}
+
 static void sysid_begin(void)
 {
     int16_t amplitude_raw = sysid_clamp_amplitude(g_sysid_amplitude_raw);
@@ -119,6 +149,7 @@ static void sysid_begin(void)
 void sysid_init(void)
 {
     memset(&g_sysid_rt, 0, sizeof(g_sysid_rt));
+    memset(&g_wheeltest_rt, 0, sizeof(g_wheeltest_rt));
     memset(&g_sysid_meta, 0, sizeof(g_sysid_meta));
     g_sysid_meta.sample_hz = APP_CFG_CONTROL_HZ;
     g_sysid_meta.capacity = APP_CFG_SYSID_SAMPLE_CAPACITY;
@@ -127,6 +158,7 @@ void sysid_init(void)
     g_sysid_meta.bit_period_ms = APP_CFG_SYSID_DEFAULT_BIT_PERIOD_MS;
     g_sysid_meta.total_bits = APP_CFG_SYSID_DEFAULT_TOTAL_BITS;
     g_sysid_hold_zero = 0U;
+    g_wheeltest_hold_zero = 0U;
 }
 
 bool sysid_task_step(void)
@@ -139,6 +171,36 @@ bool sysid_task_step(void)
 
     if ((!g_sysid_rt.running) && (g_sysid_arm != 0U))
         sysid_begin();
+
+    if ((!g_wheeltest_rt.active) && (g_wheeltest_enable != 0U))
+        wheeltest_begin();
+
+    if ((!g_wheeltest_rt.active) && (g_wheeltest_hold_zero != 0U))
+    {
+        ctrl_chassis_stop();
+        return true;
+    }
+
+    if (g_wheeltest_rt.active)
+    {
+        srv_motor_get_feedback_all(feedback);
+
+        if (!feedback[g_wheeltest_rt.wheel_id].online)
+        {
+            wheeltest_finish_and_zero_output();
+            return true;
+        }
+
+        if (g_wheeltest_enable == 0U)
+        {
+            wheeltest_finish_and_zero_output();
+            return true;
+        }
+
+        ctrl_chassis_execute_single_wheel_speed((chassis_wheel_id_t)g_wheeltest_rt.wheel_id,
+                                                g_wheeltest_speed_ref_radps);
+        return true;
+    }
 
     if ((!g_sysid_rt.running) && (g_sysid_hold_zero != 0U))
     {

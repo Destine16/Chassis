@@ -12,6 +12,7 @@
 #include "drv_nav_proto.h"
 #include "srv_arbiter.h"
 #include "srv_chassis.h"
+#include "srv_debug.h"
 #include "srv_motor.h"
 #include "srv_rc.h"
 #include "srv_watchdog.h"
@@ -31,12 +32,15 @@ void robot_init(void)
     srv_chassis_init();
     srv_watchdog_init();
     srv_arbiter_init();
+    srv_debug_init();
     ctrl_chassis_init();
     sysid_init();
-    MX_USB_DEVICE_Init();
+    if (APP_CFG_ENABLE_USB_CDC != 0U)
+        MX_USB_DEVICE_Init();
 
-    /* IMU 初始化失败不阻塞底盘主链，后续会在周期轮询里自动重试。 */
-    (void)drv_bmi088_init();
+    /* IMU 对当前 sysid 不关键，可按配置关闭初始化以避免外设 bring-up 阻塞主链。 */
+    if (APP_CFG_ENABLE_BMI088 != 0U)
+        (void)drv_bmi088_init();
 
     /* 启动 DBUS、USB CDC 观测链和 CAN 电机驱动骨架。 */
     COMMON_ASSERT(drv_dbus_init() == 0);

@@ -25,6 +25,7 @@ static const drv_can_motor_map_t k_motor_map[4] = {
 
 static drv_m3508_feedback_t g_pending_feedback[4];
 static volatile uint32_t g_pending_mask = 0U;
+static drv_can_motor_stats_t g_can_motor_stats;
 
 static int drv_can_motor_find_index(uint16_t std_id)
 {
@@ -44,6 +45,8 @@ static int drv_can_motor_find_index(uint16_t std_id)
 int drv_can_motor_init(void)
 {
     CAN_HandleTypeDef *hcan = bsp_can_get_handle(BSP_CAN_PORT_CHASSIS);
+
+    memset(&g_can_motor_stats, 0, sizeof(g_can_motor_stats));
 
     /* 第一版统一由这里完成 CAN 的运行时启动动作。 */
     if (bsp_can_configure_accept_all(hcan, 0U) != HAL_OK)
@@ -94,7 +97,14 @@ bool drv_can_motor_send_chassis_currents(int16_t i1, int16_t i2, int16_t i3, int
         index++;
     }
 
-    return bsp_can_send_std(bsp_can_get_handle(BSP_CAN_PORT_CHASSIS), APP_CFG_CAN_CHASSIS_TX_ID, payload, 8U) == HAL_OK;
+    if (bsp_can_send_std(bsp_can_get_handle(BSP_CAN_PORT_CHASSIS), APP_CFG_CAN_CHASSIS_TX_ID, payload, 8U) == HAL_OK)
+    {
+        g_can_motor_stats.tx_count++;
+        return true;
+    }
+
+    g_can_motor_stats.tx_fail_count++;
+    return false;
 }
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -111,17 +121,45 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
         int index;
 
         if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &header, data) != HAL_OK)
+        {
+            g_can_motor_stats.rx_error_count++;
             break;
+        }
 
         if ((header.IDE != CAN_ID_STD) || (header.DLC < 7U))
+        {
+            g_can_motor_stats.rx_ignored_count++;
             continue;
+        }
+
+        g_can_motor_stats.rx_frame_count++;
+        g_can_motor_stats.last_std_id = header.StdId;
 
         index = drv_can_motor_find_index((uint16_t)header.StdId);
         if (index < 0)
+        {
+            g_can_motor_stats.rx_ignored_count++;
             continue;
+        }
 
         /* ISR 里只做轻量解析和缓存，不直接更新业务层状态。 */
         drv_m3508_parse_feedback(data, &g_pending_feedback[index]);
         g_pending_mask |= (1UL << (uint32_t)index);
     }
+}
+
+void drv_can_motor_get_stats(drv_can_motor_stats_t *stats_out)
+{
+    uint32_t esr;
+
+    if (stats_out == NULL)
+        return;
+
+    *stats_out = g_can_motor_stats;
+    esr = hcan1.Instance->ESR;
+    stats_out->bus_off = ((esr & CAN_ESR_BOFF) != 0U) ? 1U : 0U;
+    stats_out->error_passive = ((esr & CAN_ESR_EPVF) != 0U) ? 1U : 0U;
+    stats_out->warning = ((esr & CAN_ESR_EWGF) != 0U) ? 1U : 0U;
+    stats_out->tec = (uint8_t)((esr & CAN_ESR_TEC) >> CAN_ESR_TEC_Pos);
+    stats_out->rec = (uint8_t)((esr & CAN_ESR_REC) >> CAN_ESR_REC_Pos);
 }

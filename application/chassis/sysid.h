@@ -31,6 +31,11 @@ extern volatile uint32_t g_sysid_wheel_id;
 extern volatile int32_t g_sysid_amplitude_raw;
 extern volatile uint32_t g_sysid_bit_period_ms;
 extern volatile uint32_t g_sysid_total_bits;
+extern volatile uint32_t g_wheeltest_enable;
+extern volatile uint32_t g_wheeltest_active;
+extern volatile uint32_t g_wheeltest_hold_zero;
+extern volatile uint32_t g_wheeltest_wheel_id;
+extern volatile float g_wheeltest_speed_ref_radps;
 
 extern sysid_meta_t g_sysid_meta;
 extern sysid_sample_t g_sysid_buffer[];

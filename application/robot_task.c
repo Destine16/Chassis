@@ -7,6 +7,7 @@
 #include "drv_dbus.h"
 #include "drv_nav_proto.h"
 #include "srv_arbiter.h"
+#include "srv_debug.h"
 #include "srv_motor.h"
 #include "srv_rc.h"
 #include "srv_watchdog.h"
@@ -36,16 +37,21 @@ void StartChassisTask(void *argument)
 
         /* 先拉取最新反馈并更新在线状态，再进入仲裁和控制。 */
         srv_motor_poll_driver_feedback();
-        drv_bmi088_poll();
+        if (APP_CFG_ENABLE_BMI088 != 0U)
+            drv_bmi088_poll();
         srv_watchdog_update();
         srv_arbiter_step();
 
         if (sysid_task_step())
+        {
+            srv_debug_refresh();
             continue;
+        }
 
         arbiter_state = srv_arbiter_get_state();
         final_cmd = srv_arbiter_get_final_cmd();
         ctrl_chassis_execute(arbiter_state.resolved_mode, &final_cmd);
+        srv_debug_refresh();
     }
 }
 
@@ -74,6 +80,11 @@ void StartTelemetryTask(void *argument)
 {
     (void)argument;
 
+    if (APP_CFG_ENABLE_USB_CDC == 0U)
+    {
+        vTaskSuspend(NULL);
+    }
+
     for (;;)
     {
         arbiter_state_t arbiter_state;
@@ -94,7 +105,7 @@ void StartTelemetryTask(void *argument)
         payload.w_fr = motors[CHASSIS_WHEEL_FRONT_RIGHT].wheel_speed_radps;
         payload.w_rl = motors[CHASSIS_WHEEL_REAR_LEFT].wheel_speed_radps;
         payload.w_rr = motors[CHASSIS_WHEEL_REAR_RIGHT].wheel_speed_radps;
-        if (drv_bmi088_get_data(&imu))
+        if ((APP_CFG_ENABLE_BMI088 != 0U) && drv_bmi088_get_data(&imu))
         {
             payload.gyro_x = imu.gyro_radps[0];
             payload.gyro_y = imu.gyro_radps[1];
@@ -135,5 +146,6 @@ void StartTelemetryTask(void *argument)
         payload.flags = flags;
 
         (void)drv_nav_proto_send_observation(&payload);
+        srv_debug_refresh();
     }
 }

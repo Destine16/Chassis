@@ -16,10 +16,15 @@ typedef struct
 static nav_tx_slot_t g_nav_tx_queue[APP_CFG_NAV_TX_QUEUE_DEPTH];
 static uint8_t g_nav_tx_active[APP_CFG_NAV_TX_BUFFER_SIZE];
 static volatile uint32_t g_nav_tx_drop_count = 0U;
+static volatile uint32_t g_nav_tx_queue_full_count = 0U;
+static volatile uint32_t g_nav_tx_start_fail_count = 0U;
+static volatile uint32_t g_nav_tx_enqueue_count = 0U;
+static volatile uint32_t g_nav_tx_dequeue_count = 0U;
 static uint8_t g_nav_tx_seq = 0U;
 static volatile uint8_t g_nav_tx_head = 0U;
 static volatile uint8_t g_nav_tx_tail = 0U;
 static volatile uint8_t g_nav_tx_count = 0U;
+static volatile uint8_t g_nav_tx_queue_depth_peak = 0U;
 static volatile uint8_t g_nav_tx_busy = 0U;
 
 extern USBD_HandleTypeDef hUsbDeviceFS;
@@ -59,6 +64,7 @@ static bool drv_nav_proto_try_start_tx(void)
         memcpy(g_nav_tx_active, g_nav_tx_queue[tail].frame, length);
         g_nav_tx_tail = (uint8_t)((tail + 1U) % APP_CFG_NAV_TX_QUEUE_DEPTH);
         g_nav_tx_count--;
+        g_nav_tx_dequeue_count++;
         g_nav_tx_busy = 1U;
         have_frame = true;
     }
@@ -72,6 +78,7 @@ static bool drv_nav_proto_try_start_tx(void)
         __disable_irq();
         g_nav_tx_busy = 0U;
         g_nav_tx_drop_count++;
+        g_nav_tx_start_fail_count++;
         __enable_irq();
         return false;
     }
@@ -83,6 +90,11 @@ int drv_nav_proto_init(void)
 {
     g_nav_tx_seq = 0U;
     g_nav_tx_drop_count = 0U;
+    g_nav_tx_queue_full_count = 0U;
+    g_nav_tx_start_fail_count = 0U;
+    g_nav_tx_enqueue_count = 0U;
+    g_nav_tx_dequeue_count = 0U;
+    g_nav_tx_queue_depth_peak = 0U;
     drv_nav_proto_reset_queue();
     return 0;
 }
@@ -108,12 +120,16 @@ bool drv_nav_proto_send_observation(const protocol_nav_observation_payload_t *pa
         g_nav_tx_tail = (uint8_t)((g_nav_tx_tail + 1U) % APP_CFG_NAV_TX_QUEUE_DEPTH);
         g_nav_tx_count--;
         g_nav_tx_drop_count++;
+        g_nav_tx_queue_full_count++;
     }
 
     memcpy(g_nav_tx_queue[g_nav_tx_head].frame, frame, length);
     g_nav_tx_queue[g_nav_tx_head].length = length;
     g_nav_tx_head = (uint8_t)((g_nav_tx_head + 1U) % APP_CFG_NAV_TX_QUEUE_DEPTH);
     g_nav_tx_count++;
+    g_nav_tx_enqueue_count++;
+    if (g_nav_tx_count > g_nav_tx_queue_depth_peak)
+        g_nav_tx_queue_depth_peak = g_nav_tx_count;
     __enable_irq();
 
     (void)drv_nav_proto_try_start_tx();
@@ -127,4 +143,22 @@ void drv_nav_proto_on_tx_complete(void)
     __enable_irq();
 
     (void)drv_nav_proto_try_start_tx();
+}
+
+void drv_nav_proto_get_stats(drv_nav_proto_stats_t *stats_out)
+{
+    if (stats_out == NULL)
+        return;
+
+    __disable_irq();
+    stats_out->drop_count = g_nav_tx_drop_count;
+    stats_out->queue_full_count = g_nav_tx_queue_full_count;
+    stats_out->tx_start_fail_count = g_nav_tx_start_fail_count;
+    stats_out->enqueue_count = g_nav_tx_enqueue_count;
+    stats_out->dequeue_count = g_nav_tx_dequeue_count;
+    stats_out->queue_count = g_nav_tx_count;
+    stats_out->queue_depth_peak = g_nav_tx_queue_depth_peak;
+    stats_out->busy = g_nav_tx_busy;
+    stats_out->seq = g_nav_tx_seq;
+    __enable_irq();
 }
