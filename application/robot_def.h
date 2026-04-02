@@ -37,8 +37,8 @@
 
 /* 遥控器到车体坐标的符号映射，后续如发现方向反了可只改这里。 */
 #define APP_CFG_RC_SIGN_VX                     1.0f
-#define APP_CFG_RC_SIGN_VY                     1.0f
-#define APP_CFG_RC_SIGN_WZ                     1.0f
+#define APP_CFG_RC_SIGN_VY                     -1.0f
+#define APP_CFG_RC_SIGN_WZ                     -1.0f
 
 /*
  * 第一版可编译骨架限幅。

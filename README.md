@@ -20,7 +20,7 @@
   - `front_right = 1`
   - `rear_left = 3`
   - `rear_right = 4`
-- 遥控器：`USART3_RX(PB11)`，`100000 / 9bit / Even`
+- 遥控器：`USART3_RX(PB11)`，`100000 / 9bit / Even / 2 stop bits`
 - IMU：板载 `BMI088`
   - `SPI1 = PA5 / PA6 / PA7`
   - `ACC_CS = PC4`
@@ -60,6 +60,7 @@ DR16/DBUS
 - 四轮逆运动学解算
 - 四轮正运动学反算
 - 逆解后的轮速同比缩放
+- 按当前实物安装写死的左右轮电机方向修正
 - 四轮共用一套速度 PID 参数
 - `CAN1 0x200` 下发四个 `C620` 电流命令
 - 电机离线直接压到 `SAFE`
@@ -114,6 +115,37 @@ modules/
 - 轮对角线 `425 mm`
 - 底盘中心到轮心距离 `212.5 mm`
 - `vx / vy` 使用 `sin/cos(45°)` 投影
+
+当前车体系定义固定为：
+- `+vx = 前`
+- `+vy = 左`
+- `+wz = 逆时针`
+
+当前按实物安装写死的电机方向修正为：
+- `front_left = -1`
+- `front_right = +1`
+- `rear_left = -1`
+- `rear_right = +1`
+
+## 遥控器说明
+
+当前代码层映射固定为：
+- 左摇杆前后：`ch3 -> vx`
+- 左摇杆左右：`ch2 -> vy`
+- 右摇杆左右：`ch0 -> wz`
+- 右摇杆前后：当前底盘代码未使用
+
+按当前实测并结合 `APP_CFG_RC_SIGN_*` 修正后，理想控制效果是：
+- 左摇杆前推：向前
+- 左摇杆后拉：向后
+- 左摇杆左拨：向左平移
+- 左摇杆右拨：向右平移
+- 右摇杆左拨：逆时针自转
+- 右摇杆右拨：顺时针自转
+
+模式拨杆：
+- `S1` 上：`SAFE`
+- `S1` 中/下：`MANUAL`
 
 ## BMI088 说明
 
@@ -232,6 +264,37 @@ PID 整定说明见：
 .venv/bin/python tools/...
 ```
 
+## 本机 USB CDC 验证
+
+当前工程提供了一个本机监视脚本，可直接在自己的电脑上验证 `USB CDC` 观测帧：
+
+- [tools/nav_cdc_monitor.py](tools/nav_cdc_monitor.py)
+
+脚本功能：
+- 自动寻找 `/dev/ttyACM*` 或 `/dev/ttyUSB*`
+- 校验帧头 `A5 5A`
+- 校验固定 `len = 46`
+- 校验 `CRC16-CCITT`
+- 实时打印四轮速度、三轴陀螺、三轴加速度和 `flags`
+
+示例：
+
+```bash
+.venv/bin/python tools/nav_cdc_monitor.py
+```
+
+指定串口：
+
+```bash
+.venv/bin/python tools/nav_cdc_monitor.py -p /dev/ttyACM0
+```
+
+只读取固定帧数：
+
+```bash
+.venv/bin/python tools/nav_cdc_monitor.py -n 20
+```
+
 ## 导航观测帧协议
 
 当前电控通过 `USB CDC` 周期发送一类固定长度观测帧给导航。
@@ -295,7 +358,7 @@ flags     u16   状态位
   - 当前已经支持在线改共享速度 PID 参数
   - 还需要结合实车继续细调 `kp / kd / ki`
 - 可选增强
-  - 如果后续需要更强的链路诊断，可再补 `USB CDC` 丢包统计和 IMU/电机观测统计
+  - 如果后续需要更强的导航稳定性，可再补 IMU 在线零偏慢修正或温漂补偿
 
 ## 编译
 
