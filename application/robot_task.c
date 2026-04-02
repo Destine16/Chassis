@@ -23,6 +23,7 @@
 void StartChassisTask(void *argument)
 {
     TickType_t last_wake_time;
+    BaseType_t bmi088_init_done = pdFALSE;
 
     (void)argument;
     last_wake_time = xTaskGetTickCount();
@@ -34,6 +35,12 @@ void StartChassisTask(void *argument)
 
         /* 固定周期运行，保证底盘控制节拍稳定。 */
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(APP_CFG_CONTROL_PERIOD_MS));
+
+        if ((APP_CFG_ENABLE_BMI088 != 0U) && (bmi088_init_done == pdFALSE))
+        {
+            (void)drv_bmi088_init();
+            bmi088_init_done = pdTRUE;
+        }
 
         /* 先拉取最新反馈并更新在线状态，再进入仲裁和控制。 */
         srv_motor_poll_driver_feedback();
@@ -101,10 +108,10 @@ void StartTelemetryTask(void *argument)
         srv_motor_get_feedback_all(motors);
 
         payload.t_ms = bsp_time_get_ms();
-        payload.w_fl = motors[CHASSIS_WHEEL_FRONT_LEFT].wheel_speed_radps;
-        payload.w_fr = motors[CHASSIS_WHEEL_FRONT_RIGHT].wheel_speed_radps;
-        payload.w_rl = motors[CHASSIS_WHEEL_REAR_LEFT].wheel_speed_radps;
-        payload.w_rr = motors[CHASSIS_WHEEL_REAR_RIGHT].wheel_speed_radps;
+        payload.w_fl = ctrl_chassis_motor_sign(CHASSIS_WHEEL_FRONT_LEFT) * motors[CHASSIS_WHEEL_FRONT_LEFT].wheel_speed_radps;
+        payload.w_fr = ctrl_chassis_motor_sign(CHASSIS_WHEEL_FRONT_RIGHT) * motors[CHASSIS_WHEEL_FRONT_RIGHT].wheel_speed_radps;
+        payload.w_rl = ctrl_chassis_motor_sign(CHASSIS_WHEEL_REAR_LEFT) * motors[CHASSIS_WHEEL_REAR_LEFT].wheel_speed_radps;
+        payload.w_rr = ctrl_chassis_motor_sign(CHASSIS_WHEEL_REAR_RIGHT) * motors[CHASSIS_WHEEL_REAR_RIGHT].wheel_speed_radps;
         if ((APP_CFG_ENABLE_BMI088 != 0U) && drv_bmi088_get_data(&imu))
         {
             payload.gyro_x = imu.gyro_radps[0];

@@ -18,6 +18,12 @@ typedef struct
 
 extern ctrl_chassis_speed_pid_param_t g_ctrl_chassis_speed_pid_param;
 
+/*
+ * 当前底盘按“电机输出轴朝外、四轮对称安装”写死每轮方向。
+ * 返回值用于把抽象轮速方向转换成实际电机正方向。
+ */
+float ctrl_chassis_motor_sign(chassis_wheel_id_t wheel_id);
+
 /* 底盘控制核心：final_cmd -> 轮速参考 -> 速度 PID -> 电流给定 -> CAN 发送。 */
 void ctrl_chassis_init(void);
 void ctrl_chassis_execute(app_mode_t mode, const chassis_cmd_t *final_cmd);

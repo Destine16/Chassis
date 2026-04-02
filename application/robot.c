@@ -38,10 +38,6 @@ void robot_init(void)
     if (APP_CFG_ENABLE_USB_CDC != 0U)
         MX_USB_DEVICE_Init();
 
-    /* IMU 对当前 sysid 不关键，可按配置关闭初始化以避免外设 bring-up 阻塞主链。 */
-    if (APP_CFG_ENABLE_BMI088 != 0U)
-        (void)drv_bmi088_init();
-
     /* 启动 DBUS、USB CDC 观测链和 CAN 电机驱动骨架。 */
     COMMON_ASSERT(drv_dbus_init() == 0);
     COMMON_ASSERT(drv_nav_proto_init() == 0);

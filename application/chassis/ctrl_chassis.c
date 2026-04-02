@@ -22,6 +22,30 @@ typedef struct
 
 static ctrl_chassis_context_t g_ctrl_ctx;
 
+float ctrl_chassis_motor_sign(chassis_wheel_id_t wheel_id)
+{
+    /*
+     * 结合当前实物安装前提写死：
+     * - M3508 正方向按官方定义：面对输出轴时逆时针为正
+     * - 四个电机输出轴都朝底盘外侧，对称安装
+     *
+     * 在这个前提下，底盘抽象轮坐标的正方向与实际电机正方向之间：
+     * - 左侧两轮相反
+     * - 右侧两轮相同
+     */
+    switch (wheel_id)
+    {
+    case CHASSIS_WHEEL_FRONT_LEFT:
+    case CHASSIS_WHEEL_REAR_LEFT:
+        return -1.0f;
+
+    case CHASSIS_WHEEL_FRONT_RIGHT:
+    case CHASSIS_WHEEL_REAR_RIGHT:
+    default:
+        return 1.0f;
+    }
+}
+
 /*
  * 默认共享速度环参数采用当前单轮辨识后验证可用的 balanced 结果，
  * 上电即可直接进行遥控底盘测试；运行中仍可在调试器里在线修改。
@@ -117,13 +141,15 @@ void ctrl_chassis_execute_single_wheel_speed(chassis_wheel_id_t wheel_id, float 
     while (index < COMMON_WHEEL_COUNT)
     {
         motor_feedback_t feedback = srv_motor_get_feedback((chassis_wheel_id_t)index);
+        float motor_sign = ctrl_chassis_motor_sign((chassis_wheel_id_t)index);
+        float signed_feedback_wheel_speed = motor_sign * feedback.wheel_speed_radps;
         float cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
                                speed_ref[index],
-                               feedback.wheel_speed_radps,
+                               signed_feedback_wheel_speed,
                                dt_s);
 
         cmd = soft_limit_symmetric(cmd, APP_CFG_C620_CURRENT_LIMIT);
-        current_raw[index] = drv_m3508_current_cmd_to_raw(cmd);
+        current_raw[index] = drv_m3508_current_cmd_to_raw(motor_sign * cmd);
         targets.wheel_speed_ref_radps[index] = speed_ref[index];
         targets.current_cmd[index] = cmd;
         index++;
@@ -173,17 +199,19 @@ void ctrl_chassis_execute(app_mode_t mode, const chassis_cmd_t *final_cmd)
     while (index < COMMON_WHEEL_COUNT)
     {
         motor_feedback_t feedback = srv_motor_get_feedback((chassis_wheel_id_t)index);
+        float motor_sign = ctrl_chassis_motor_sign((chassis_wheel_id_t)index);
+        float signed_feedback_wheel_speed = motor_sign * feedback.wheel_speed_radps;
 
         /* 底盘轮第一版只做速度外环，PID 输出直接作为 C620 电流给定。 */
         float current_cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
                                        targets.wheel_speed_ref_radps[index],
-                                       feedback.wheel_speed_radps,
+                                       signed_feedback_wheel_speed,
                                        dt_s);
 
         current_cmd = soft_limit_symmetric(current_cmd, APP_CFG_C620_CURRENT_LIMIT);
-        actual_wheel_speed_radps[index] = feedback.wheel_speed_radps;
+        actual_wheel_speed_radps[index] = signed_feedback_wheel_speed;
         targets.current_cmd[index] = current_cmd;
-        current_raw[index] = drv_m3508_current_cmd_to_raw(current_cmd);
+        current_raw[index] = drv_m3508_current_cmd_to_raw(motor_sign * current_cmd);
         index++;
     }
 

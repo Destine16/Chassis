@@ -225,7 +225,9 @@ bool sysid_task_step(void)
         return true;
     }
 
-    current_raw[g_sysid_rt.wheel_id] = g_sysid_rt.current_u_raw;
+    current_raw[g_sysid_rt.wheel_id] =
+        drv_m3508_current_cmd_to_raw(ctrl_chassis_motor_sign((chassis_wheel_id_t)g_sysid_rt.wheel_id) *
+                                     (float)g_sysid_rt.current_u_raw);
     current_cmd[g_sysid_rt.wheel_id] = (float)g_sysid_rt.current_u_raw;
 
     sample_index = g_sysid_meta.sample_count;
@@ -233,7 +235,9 @@ bool sysid_task_step(void)
     {
         g_sysid_buffer[sample_index].u_raw = g_sysid_rt.last_applied_u_raw;
         g_sysid_buffer[sample_index].reserved = 0;
-        g_sysid_buffer[sample_index].speed_radps = feedback[g_sysid_rt.wheel_id].wheel_speed_radps;
+        g_sysid_buffer[sample_index].speed_radps =
+            ctrl_chassis_motor_sign((chassis_wheel_id_t)g_sysid_rt.wheel_id) *
+            feedback[g_sysid_rt.wheel_id].wheel_speed_radps;
         g_sysid_meta.sample_count = sample_index + 1U;
     }
     else
