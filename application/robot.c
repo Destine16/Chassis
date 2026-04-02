@@ -17,7 +17,6 @@
 #include "srv_rc.h"
 #include "srv_watchdog.h"
 #include "sysid.h"
-#include "usb_device.h"
 
 extern osThreadId_t rcTaskHandle;
 
@@ -35,8 +34,6 @@ void robot_init(void)
     srv_debug_init();
     ctrl_chassis_init();
     sysid_init();
-    if (APP_CFG_ENABLE_USB_CDC != 0U)
-        MX_USB_DEVICE_Init();
 
     /* 启动 DBUS、USB CDC 观测链和 CAN 电机驱动骨架。 */
     COMMON_ASSERT(drv_dbus_init() == 0);

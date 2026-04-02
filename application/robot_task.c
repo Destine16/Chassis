@@ -15,6 +15,7 @@
 #include "ctrl_chassis.h"
 #include "protocol_nav.h"
 #include "sysid.h"
+#include "usb_device.h"
 
 /*
  * 1 kHz 底盘主控任务。
@@ -85,6 +86,8 @@ void StartRcTask(void *argument)
 /* 遥测任务通过 USB CDC 周期上报轮速与 IMU 原始观测。 */
 void StartTelemetryTask(void *argument)
 {
+    BaseType_t usb_init_done = pdFALSE;
+
     (void)argument;
 
     if (APP_CFG_ENABLE_USB_CDC == 0U)
@@ -102,6 +105,12 @@ void StartTelemetryTask(void *argument)
         uint32_t watchdog_flags;
 
         vTaskDelay(pdMS_TO_TICKS(APP_CFG_TELEMETRY_PERIOD_MS));
+
+        if (usb_init_done == pdFALSE)
+        {
+            MX_USB_DEVICE_Init();
+            usb_init_done = pdTRUE;
+        }
 
         arbiter_state = srv_arbiter_get_state();
         watchdog_flags = srv_watchdog_get_flags();
