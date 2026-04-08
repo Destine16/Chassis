@@ -14,7 +14,7 @@
 #define APP_CFG_CONTROL_HZ                     1000U
 #define APP_CFG_CONTROL_PERIOD_MS              1U
 #define APP_CFG_TELEMETRY_PERIOD_MS            5U
-#define APP_CFG_ENABLE_USB_CDC                 0U
+#define APP_CFG_ENABLE_USB_CDC                 1U
 #define APP_CFG_ENABLE_BMI088                  1U
 
 /* 统一离线判定超时。 */

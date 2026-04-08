@@ -178,19 +178,32 @@ void drv_uart_idle_dma_irq_handler(drv_uart_idle_dma_t *ctx)
     uint8_t completed_index = 0U; /* 本次确认收完的是哪块缓冲区。 */
     uint16_t remaining = 0U;      /* DMA 还剩多少字节没有搬完。 */
     uint16_t received = 0U;       /* 本次这一帧的有效长度。 */
+    uint32_t sr = 0U;
 
     /* 第一步：基础指针保护。没有上下文或硬件句柄时，中断不做任何事。 */
     if ((ctx == NULL) || (ctx->huart == NULL) || (ctx->hdma == NULL))
         return;
 
+    sr = ctx->huart->Instance->SR;
+
     /*
      * 第二步：确认这次进入函数真的是因为 UART IDLE 中断。
      * 如果只是普通的 USART IRQ 入口被调用，但当前既没有 IDLE 标志、也没有开 IDLE 中断，
      * 那就说明这次中断不归这个驱动处理。
+     *
+     * 这一路 DBUS 接收不再走 HAL_UART_IRQHandler()，否则 HAL 在 ORE/FE 等错误下会
+     * abort DMA，导致后续只能看到 1 字节短帧。非 IDLE 的错误中断在这里清掉即可。
      */
     if ((__HAL_UART_GET_FLAG(ctx->huart, UART_FLAG_IDLE) == RESET) ||
         (__HAL_UART_GET_IT_SOURCE(ctx->huart, UART_IT_IDLE) == RESET))
+    {
+        if ((sr & (USART_SR_PE | USART_SR_FE | USART_SR_NE | USART_SR_ORE)) != 0U)
+        {
+            __HAL_UART_CLEAR_PEFLAG(ctx->huart);
+            ctx->huart->ErrorCode = HAL_UART_ERROR_NONE;
+        }
         return;
+    }
 
     /*
      * 第三步：清除 IDLE 标志，并读取 DMA 当前剩余计数。
