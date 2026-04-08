@@ -32,13 +32,13 @@ typedef struct
     uint32_t last_sequence;
 } drv_dbus_stats_t;
 
-/* 初始化 USART3 双缓冲接收。 */
+/* 初始化 USART3 的 DBUS 字节流接收。 */
 int drv_dbus_init(void);
 
-/* 在 USART3 IDLE 中断里调用。 */
+/* 在 USART3 IRQ 里调用，内部按字节写入 ring buffer。 */
 void drv_dbus_irq_handler(void);
 
-/* 只返回最新一帧完整 DBUS，不保留旧帧。 */
+/* 从字节流里解析出下一帧完整 DBUS。一次调用最多返回一帧。 */
 bool drv_dbus_read_latest(drv_dbus_frame_t *frame_out);
 void drv_dbus_get_stats(drv_dbus_stats_t *stats_out);
 

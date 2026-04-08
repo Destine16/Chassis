@@ -63,7 +63,7 @@ void StartChassisTask(void *argument)
     }
 }
 
-/* 遥控器任务由 USART3 IDLE 中断通知唤醒，只解析最新一帧 DBUS。 */
+/* 遥控器任务由 USART3 中断通知唤醒，从 DBUS 字节流中持续解析完整帧。 */
 void StartRcTask(void *argument)
 {
     (void)argument;
@@ -77,8 +77,8 @@ void StartRcTask(void *argument)
         if ((notifications & ROBOT_NOTIFY_RC_FRAME) == 0U)
             continue;
 
-        /* DBUS 为固定 18 字节帧，驱动层已处理 DMA/IDLE 细节。 */
-        if (drv_dbus_read_latest(&frame))
+        /* 片段可能在同一次通知里积压多段，尽量一次性 drain 干净，只保留最新有效 RC 状态。 */
+        while (drv_dbus_read_latest(&frame))
             srv_rc_update_from_dbus(&frame);
     }
 }

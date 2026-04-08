@@ -27,6 +27,16 @@ FLAG_NAMES = {
     8: "rc_offline",
 }
 
+IMU_VALID_MASK = 1 << 0
+WHEEL_FL_VALID_MASK = 1 << 1
+WHEEL_FR_VALID_MASK = 1 << 2
+WHEEL_RL_VALID_MASK = 1 << 3
+WHEEL_RR_VALID_MASK = 1 << 4
+IMU_FAULT_MASK = 1 << 5
+MOTOR_FAULT_MASK = 1 << 6
+SAFE_MODE_MASK = 1 << 7
+RC_OFFLINE_MASK = 1 << 8
+
 
 @dataclass
 class Observation:
@@ -67,6 +77,38 @@ def autodetect_port() -> str:
 def decode_flags(flags: int) -> str:
     names = [name for bit, name in FLAG_NAMES.items() if flags & (1 << bit)]
     return ",".join(names) if names else "-"
+
+
+def judge_observation(obs: Observation) -> str:
+    issues: list[str] = []
+    warnings: list[str] = []
+
+    if (obs.flags & IMU_VALID_MASK) == 0:
+        issues.append("imu_invalid")
+    if (obs.flags & WHEEL_FL_VALID_MASK) == 0:
+        issues.append("wheel_fl_invalid")
+    if (obs.flags & WHEEL_FR_VALID_MASK) == 0:
+        issues.append("wheel_fr_invalid")
+    if (obs.flags & WHEEL_RL_VALID_MASK) == 0:
+        issues.append("wheel_rl_invalid")
+    if (obs.flags & WHEEL_RR_VALID_MASK) == 0:
+        issues.append("wheel_rr_invalid")
+
+    if (obs.flags & IMU_FAULT_MASK) != 0:
+        warnings.append("imu_fault")
+    if (obs.flags & MOTOR_FAULT_MASK) != 0:
+        warnings.append("motor_fault")
+    if (obs.flags & SAFE_MODE_MASK) != 0:
+        warnings.append("safe_mode")
+    if (obs.flags & RC_OFFLINE_MASK) != 0:
+        warnings.append("rc_offline")
+
+    if issues:
+        extra = warnings if warnings else []
+        return f"BAD({','.join(issues + extra)})"
+    if warnings:
+        return f"WARN({','.join(warnings)})"
+    return "GOOD(valid)"
 
 
 def parse_observation(frame: bytes) -> Observation:
@@ -177,7 +219,8 @@ def main() -> int:
                 f"w=[{obs.w_fl:7.2f},{obs.w_fr:7.2f},{obs.w_rl:7.2f},{obs.w_rr:7.2f}] "
                 f"g=[{obs.gyro_x:7.3f},{obs.gyro_y:7.3f},{obs.gyro_z:7.3f}] "
                 f"a=[{obs.acc_x:7.3f},{obs.acc_y:7.3f},{obs.acc_z:7.3f}] "
-                f"flags=0x{obs.flags:04x}({decode_flags(obs.flags)})"
+                f"flags=0x{obs.flags:04x}({decode_flags(obs.flags)}) "
+                f"judge={judge_observation(obs)}"
             )
 
             if args.summary_every > 0 and count % args.summary_every == 0:

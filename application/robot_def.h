@@ -44,8 +44,8 @@
  * 第一版可编译骨架限幅。
  * TODO: 按实车能力替换。
  */
-#define APP_CFG_MAX_VX_MPS                     1.0f
-#define APP_CFG_MAX_VY_MPS                     1.0f
+#define APP_CFG_MAX_VX_MPS                     1.3f
+#define APP_CFG_MAX_VY_MPS                     1.3f
 #define APP_CFG_MAX_WZ_RADPS                   2.0f
 
 /*
