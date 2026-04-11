@@ -12,7 +12,6 @@
 #define BMI088_OFFLINE_TIMEOUT_MS            100U
 #define BMI088_ACCEL_SEN_6G                  0.00179443359375f
 #define BMI088_GYRO_SEN_2000                 0.00106526443603f
-#define BMI088_GYRO_BIAS_CALIB_SAMPLES       300U
 #define BMI088_ACCEL_DMA_FRAME_LEN           8U
 #define BMI088_GYRO_DMA_FRAME_LEN            7U
 #define BMI088_ASYNC_FALLBACK_MS             5U
@@ -42,11 +41,7 @@ typedef struct
     uint32_t last_init_attempt_ms;
     uint32_t last_async_update_ms;
     uint32_t last_transfer_start_ms;
-    float gyro_bias_radps[3];
-    float gyro_bias_sum[3];
-    uint16_t gyro_bias_count;
     bool ready;
-    bool bias_ready;
     bmi088_async_context_t async;
 } bmi088_context_t;
 
@@ -67,7 +62,6 @@ static bool bmi088_start_gyro_dma_transfer(void);
 static bool bmi088_start_accel_dma_transfer(void);
 static void bmi088_parse_gyro_frame(const uint8_t *rx_buf);
 static void bmi088_parse_accel_frame(const uint8_t *rx_buf);
-static void bmi088_complete_gyro_sample(float *gyro_x, float *gyro_y, float *gyro_z);
 
 int drv_bmi088_init(void)
 {
@@ -76,10 +70,7 @@ int drv_bmi088_init(void)
     g_bmi088_ctx.data.error_flags = bmi088_try_init();
     g_bmi088_ctx.ready = (g_bmi088_ctx.data.error_flags == DRV_BMI088_ERR_NONE);
     if (g_bmi088_ctx.ready)
-    {
-        g_bmi088_ctx.data.error_flags |= DRV_BMI088_ERR_GYRO_BIAS_NOT_READY;
         bmi088_async_enable();
-    }
     return g_bmi088_ctx.ready ? 0 : -1;
 }
 
@@ -95,10 +86,7 @@ void drv_bmi088_poll(void)
             g_bmi088_ctx.data.error_flags = bmi088_try_init();
             g_bmi088_ctx.ready = (g_bmi088_ctx.data.error_flags == DRV_BMI088_ERR_NONE);
             if (g_bmi088_ctx.ready)
-            {
-                g_bmi088_ctx.data.error_flags |= DRV_BMI088_ERR_GYRO_BIAS_NOT_READY;
                 bmi088_async_enable();
-            }
         }
         return;
     }
@@ -285,11 +273,7 @@ static uint32_t bmi088_try_init(void)
 
     if (err == DRV_BMI088_ERR_NONE)
     {
-        memset(g_bmi088_ctx.gyro_bias_radps, 0, sizeof(g_bmi088_ctx.gyro_bias_radps));
-        memset(g_bmi088_ctx.gyro_bias_sum, 0, sizeof(g_bmi088_ctx.gyro_bias_sum));
-        g_bmi088_ctx.gyro_bias_count = 0U;
-        g_bmi088_ctx.bias_ready = false;
-        g_bmi088_ctx.data.valid = false;
+        g_bmi088_ctx.data.valid = true;
         g_bmi088_ctx.data.online = false;
         g_bmi088_ctx.data.sample_ms = 0U;
         g_bmi088_ctx.last_async_update_ms = bsp_time_get_ms();
@@ -416,37 +400,6 @@ static bool bmi088_start_accel_dma_transfer(void)
     return true;
 }
 
-static void bmi088_complete_gyro_sample(float *gyro_x, float *gyro_y, float *gyro_z)
-{
-    if (!g_bmi088_ctx.bias_ready)
-    {
-        g_bmi088_ctx.gyro_bias_sum[0] += *gyro_x;
-        g_bmi088_ctx.gyro_bias_sum[1] += *gyro_y;
-        g_bmi088_ctx.gyro_bias_sum[2] += *gyro_z;
-        ++g_bmi088_ctx.gyro_bias_count;
-
-        if (g_bmi088_ctx.gyro_bias_count >= BMI088_GYRO_BIAS_CALIB_SAMPLES)
-        {
-            g_bmi088_ctx.gyro_bias_radps[0] = g_bmi088_ctx.gyro_bias_sum[0] / (float)g_bmi088_ctx.gyro_bias_count;
-            g_bmi088_ctx.gyro_bias_radps[1] = g_bmi088_ctx.gyro_bias_sum[1] / (float)g_bmi088_ctx.gyro_bias_count;
-            g_bmi088_ctx.gyro_bias_radps[2] = g_bmi088_ctx.gyro_bias_sum[2] / (float)g_bmi088_ctx.gyro_bias_count;
-            g_bmi088_ctx.bias_ready = true;
-            g_bmi088_ctx.data.error_flags &= ~DRV_BMI088_ERR_GYRO_BIAS_NOT_READY;
-        }
-        else
-        {
-            *gyro_x = 0.0f;
-            *gyro_y = 0.0f;
-            *gyro_z = 0.0f;
-            return;
-        }
-    }
-
-    *gyro_x -= g_bmi088_ctx.gyro_bias_radps[0];
-    *gyro_y -= g_bmi088_ctx.gyro_bias_radps[1];
-    *gyro_z -= g_bmi088_ctx.gyro_bias_radps[2];
-}
-
 static void bmi088_parse_gyro_frame(const uint8_t *rx_buf)
 {
     int16_t raw;
@@ -461,15 +414,13 @@ static void bmi088_parse_gyro_frame(const uint8_t *rx_buf)
     raw = (int16_t)(((uint16_t)rx_buf[6] << 8) | rx_buf[5]);
     gz = raw * BMI088_GYRO_SEN_2000;
 
-    bmi088_complete_gyro_sample(&gx, &gy, &gz);
-
     /* Map the installed BMI088 axes to chassis frame: +x forward, +y left, +z up. */
     g_bmi088_ctx.data.gyro_radps[0] = gy;
     g_bmi088_ctx.data.gyro_radps[1] = -gx;
     g_bmi088_ctx.data.gyro_radps[2] = gz;
     g_bmi088_ctx.data.sample_ms = bsp_time_get_ms();
     g_bmi088_ctx.data.online = true;
-    g_bmi088_ctx.data.valid = g_bmi088_ctx.bias_ready;
+    g_bmi088_ctx.data.valid = true;
 }
 
 static void bmi088_parse_accel_frame(const uint8_t *rx_buf)
