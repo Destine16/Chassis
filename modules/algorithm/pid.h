@@ -11,6 +11,9 @@ typedef struct
     float previous_error;
     float integral_limit;
     float output_limit;
+    float zero_ref_threshold;
+    float zero_feedback_threshold;
+    float integral_separation_error;
 } pid_controller_t;
 
 /* 初始化 PID 参数并清空内部状态。 */

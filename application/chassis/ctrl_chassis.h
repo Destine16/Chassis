@@ -19,6 +19,21 @@ typedef struct
 extern ctrl_chassis_speed_pid_param_t g_ctrl_chassis_speed_pid_param;
 
 /*
+ * 轮速前馈参数：
+ * u_ff = kS * sign(speed_ref) + kV * speed_ref
+ *
+ * enable 仅控制是否把前馈叠加进速度环，不影响参数本身。
+ */
+typedef struct
+{
+    uint32_t enable;
+    float k_s;
+    float k_v;
+} ctrl_chassis_speed_ff_param_t;
+
+extern ctrl_chassis_speed_ff_param_t g_ctrl_chassis_speed_ff_param;
+
+/*
  * 当前底盘按“电机输出轴朝外、四轮对称安装”写死每轮方向。
  * 返回值用于把抽象轮速方向转换成实际电机正方向。
  */

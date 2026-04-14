@@ -1,5 +1,6 @@
 #include "ctrl_chassis.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "robot_def.h"
@@ -58,6 +59,30 @@ ctrl_chassis_speed_pid_param_t g_ctrl_chassis_speed_pid_param = {
     .output_limit = APP_CFG_SPEED_PID_OUT_LIMIT,
 };
 
+/*
+ * 当前默认前馈来自单轮稳态速度平台实验的推荐对称模型：
+ * u_ff = 425.378 * sign(w_ref) + 1.14785 * w_ref
+ */
+ctrl_chassis_speed_ff_param_t g_ctrl_chassis_speed_ff_param = {
+    .enable = 1U,
+    .k_s = 425.378f,
+    .k_v = 1.14785f,
+};
+
+static float ctrl_chassis_compute_speed_ff(float speed_ref_radps)
+{
+    if (g_ctrl_chassis_speed_ff_param.enable == 0U)
+        return 0.0f;
+
+    if (fabsf(speed_ref_radps) <= APP_CFG_SPEED_PID_ZERO_REF_RADPS)
+        return 0.0f;
+
+    if (speed_ref_radps > 0.0f)
+        return g_ctrl_chassis_speed_ff_param.k_s + (g_ctrl_chassis_speed_ff_param.k_v * speed_ref_radps);
+
+    return -g_ctrl_chassis_speed_ff_param.k_s + (g_ctrl_chassis_speed_ff_param.k_v * speed_ref_radps);
+}
+
 static void ctrl_chassis_sync_speed_pid_params(void)
 {
     uint32_t index = 0U;
@@ -69,6 +94,9 @@ static void ctrl_chassis_sync_speed_pid_params(void)
         g_ctrl_ctx.speed_pid[index].kd = g_ctrl_chassis_speed_pid_param.kd;
         g_ctrl_ctx.speed_pid[index].integral_limit = g_ctrl_chassis_speed_pid_param.integral_limit;
         g_ctrl_ctx.speed_pid[index].output_limit = g_ctrl_chassis_speed_pid_param.output_limit;
+        g_ctrl_ctx.speed_pid[index].zero_ref_threshold = APP_CFG_SPEED_PID_ZERO_REF_RADPS;
+        g_ctrl_ctx.speed_pid[index].zero_feedback_threshold = APP_CFG_SPEED_PID_ZERO_FB_RADPS;
+        g_ctrl_ctx.speed_pid[index].integral_separation_error = APP_CFG_SPEED_PID_INT_SEP_ERR_RADPS;
         index++;
     }
 }
@@ -143,10 +171,12 @@ void ctrl_chassis_execute_single_wheel_speed(chassis_wheel_id_t wheel_id, float 
         motor_feedback_t feedback = srv_motor_get_feedback((chassis_wheel_id_t)index);
         float motor_sign = ctrl_chassis_motor_sign((chassis_wheel_id_t)index);
         float signed_feedback_wheel_speed = motor_sign * feedback.wheel_speed_radps;
-        float cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
-                               speed_ref[index],
-                               signed_feedback_wheel_speed,
-                               dt_s);
+        float ff_cmd = ctrl_chassis_compute_speed_ff(speed_ref[index]);
+        float pid_cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
+                                   speed_ref[index],
+                                   signed_feedback_wheel_speed,
+                                   dt_s);
+        float cmd = ff_cmd + pid_cmd;
 
         cmd = soft_limit_symmetric(cmd, APP_CFG_C620_CURRENT_LIMIT);
         current_raw[index] = drv_m3508_current_cmd_to_raw(motor_sign * cmd);
@@ -201,12 +231,14 @@ void ctrl_chassis_execute(app_mode_t mode, const chassis_cmd_t *final_cmd)
         motor_feedback_t feedback = srv_motor_get_feedback((chassis_wheel_id_t)index);
         float motor_sign = ctrl_chassis_motor_sign((chassis_wheel_id_t)index);
         float signed_feedback_wheel_speed = motor_sign * feedback.wheel_speed_radps;
+        float ff_cmd = ctrl_chassis_compute_speed_ff(targets.wheel_speed_ref_radps[index]);
 
         /* 底盘轮第一版只做速度外环，PID 输出直接作为 C620 电流给定。 */
-        float current_cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
-                                       targets.wheel_speed_ref_radps[index],
-                                       signed_feedback_wheel_speed,
-                                       dt_s);
+        float pid_cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
+                                   targets.wheel_speed_ref_radps[index],
+                                   signed_feedback_wheel_speed,
+                                   dt_s);
+        float current_cmd = ff_cmd + pid_cmd;
 
         current_cmd = soft_limit_symmetric(current_cmd, APP_CFG_C620_CURRENT_LIMIT);
         actual_wheel_speed_radps[index] = signed_feedback_wheel_speed;

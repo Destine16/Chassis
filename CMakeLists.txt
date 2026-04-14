@@ -28,6 +28,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
+option(CHASSIS_ENABLE_EXPERIMENTS "Build PRBS/FFID/wheeltest experiment code" OFF)
+message("Experiments enabled: " ${CHASSIS_ENABLE_EXPERIMENTS})
+
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
 
@@ -58,6 +61,13 @@ file(GLOB_RECURSE USER_SOURCES CONFIGURE_DEPENDS
 
 list(FILTER USER_SOURCES EXCLUDE REGEX ".*/application/cmd/srv_nav\\.c$")
 
+if(NOT CHASSIS_ENABLE_EXPERIMENTS)
+    list(FILTER USER_SOURCES EXCLUDE REGEX ".*/application/chassis/sysid_shared\\.c$")
+    list(FILTER USER_SOURCES EXCLUDE REGEX ".*/application/chassis/sysid_prbs\\.c$")
+    list(FILTER USER_SOURCES EXCLUDE REGEX ".*/application/chassis/sysid_ffid\\.c$")
+    list(FILTER USER_SOURCES EXCLUDE REGEX ".*/application/chassis/sysid_wheeltest\\.c$")
+endif()
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
@@ -74,7 +84,7 @@ include_sub_directories_recursively(${CMAKE_PROJECT_NAME} ${CMAKE_SOURCE_DIR}/mo
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined symbols
+    APP_CFG_ENABLE_EXPERIMENTS=$<IF:$<BOOL:${CHASSIS_ENABLE_EXPERIMENTS}>,1,0>
 )
 
 # Remove wrong libob.a library dependency when using cpp files

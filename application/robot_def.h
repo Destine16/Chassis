@@ -17,6 +17,14 @@
 #define APP_CFG_ENABLE_USB_CDC                 1U
 #define APP_CFG_ENABLE_BMI088                  1U
 
+/*
+ * 编译期实验功能总开关。
+ * 默认由 CMake 注入；未显式配置时，发布构建默认关闭实验代码。
+ */
+#ifndef APP_CFG_ENABLE_EXPERIMENTS
+#define APP_CFG_ENABLE_EXPERIMENTS             0U
+#endif
+
 /* 统一离线判定超时。 */
 #define APP_CFG_RC_TIMEOUT_MS                  100U
 #define APP_CFG_MOTOR_TIMEOUT_MS               100U
@@ -72,6 +80,14 @@
 #define APP_CFG_SPEED_PID_INT_LIMIT            3000.0f
 #define APP_CFG_SPEED_PID_OUT_LIMIT            10000.0f
 #define APP_CFG_C620_CURRENT_LIMIT             10000.0f
+/*
+ * 速度环零速区保护：
+ * - ref 很小时清积分并关闭前馈
+ * - error 过大时暂停积分（积分分离）
+ */
+#define APP_CFG_SPEED_PID_ZERO_REF_RADPS       0.25f
+#define APP_CFG_SPEED_PID_ZERO_FB_RADPS        0.50f
+#define APP_CFG_SPEED_PID_INT_SEP_ERR_RADPS    3.00f
 
 /*
  * 轮速参考统一饱和上限。
@@ -90,6 +106,11 @@
 #define APP_CFG_SYSID_DEFAULT_AMPLITUDE_RAW    2500
 #define APP_CFG_SYSID_DEFAULT_BIT_PERIOD_MS    40U
 #define APP_CFG_SYSID_DEFAULT_TOTAL_BITS       127U
+#define APP_CFG_FFID_DEFAULT_WHEEL_ID          CHASSIS_WHEEL_FRONT_LEFT
+#define APP_CFG_FFID_DEFAULT_SPEED_MAX_RADPS   16.0f
+#define APP_CFG_FFID_DEFAULT_SPEED_LEVEL_COUNT 8U
+#define APP_CFG_FFID_DEFAULT_HOLD_DURATION_MS  300U
+#define APP_CFG_FFID_DEFAULT_SETTLE_SKIP_MS    120U
 #define APP_CFG_SYSID_SAMPLE_CAPACITY          6000U
 
 /* USB CDC 观测帧协议基础字段。 */

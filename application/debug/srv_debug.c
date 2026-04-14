@@ -28,12 +28,16 @@ void srv_debug_refresh(void)
     g_debug_snapshot.wheel_targets = srv_chassis_get_wheel_targets();
     srv_motor_get_feedback_all(g_debug_snapshot.motors);
     g_debug_snapshot.pid_param = g_ctrl_chassis_speed_pid_param;
+    g_debug_snapshot.ff_param = g_ctrl_chassis_speed_ff_param;
     drv_dbus_get_stats(&g_debug_snapshot.dbus);
     drv_can_motor_get_stats(&g_debug_snapshot.can);
     drv_nav_proto_get_stats(&g_debug_snapshot.nav_tx);
     g_debug_snapshot.sysid_meta = g_sysid_meta;
+    g_debug_snapshot.ffid_meta = g_ffid_meta;
     g_debug_snapshot.sysid_running = g_sysid_running;
     g_debug_snapshot.sysid_hold_zero = g_sysid_hold_zero;
+    g_debug_snapshot.ffid_running = g_ffid_running;
+    g_debug_snapshot.ffid_hold_zero = g_ffid_hold_zero;
     g_debug_snapshot.wheeltest_active = g_wheeltest_active;
     g_debug_snapshot.wheeltest_hold_zero = g_wheeltest_hold_zero;
     g_debug_snapshot.wheeltest_wheel_id = g_wheeltest_wheel_id;

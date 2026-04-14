@@ -20,12 +20,16 @@ typedef struct
     wheel_targets_t wheel_targets;
     motor_feedback_t motors[COMMON_WHEEL_COUNT];
     ctrl_chassis_speed_pid_param_t pid_param;
+    ctrl_chassis_speed_ff_param_t ff_param;
     drv_dbus_stats_t dbus;
     drv_can_motor_stats_t can;
     drv_nav_proto_stats_t nav_tx;
     sysid_meta_t sysid_meta;
+    ffid_meta_t ffid_meta;
     uint32_t sysid_running;
     uint32_t sysid_hold_zero;
+    uint32_t ffid_running;
+    uint32_t ffid_hold_zero;
     uint32_t wheeltest_active;
     uint32_t wheeltest_hold_zero;
     uint32_t wheeltest_wheel_id;
