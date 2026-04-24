@@ -47,3 +47,22 @@
 说明：
 - 当前工程已经能用 FFID 得到的 `kS/kV` 作为速度前馈
 - PID 主要继续负责误差修正和扰动抑制
+
+## 4. 回中主动刹车整定
+
+用途：
+- 优化遥控器回中后的落地停车距离和停车时间
+
+固件参数：
+- `g_ctrl_chassis_brake_param.k_brake`
+- 默认值在 [robot_def.h](../application/robot_def.h) 中配置
+
+工具：
+- [brake_tuning.md](./brake_tuning.md)
+- [tools/brake_capture.py](../tools/brake_capture.py)
+- [tools/brake_analyze.py](../tools/brake_analyze.py)
+- [tools/brake_optimize.py](../tools/brake_optimize.py)
+
+当前数据：
+- [data/brake/analysis_forward_k0_1200](../data/brake/analysis_forward_k0_1200)
+- [data/brake/optimize_forward_k0_1200_strict005](../data/brake/optimize_forward_k0_1200_strict005)

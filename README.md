@@ -19,6 +19,7 @@
   - `rear_right = 4`
 - 遥控器：`USART3_RX(PB11)`，`100000 / 9bit / Even / 1 stop bit`
 - 导航观测链：`USB CDC @ 200 Hz`
+- 回中主动刹车：当前默认 `K_brake = 1030`
 
 ## 主链路
 
@@ -27,7 +28,7 @@ DR16/DBUS
 -> RC 服务层
 -> SAFE / MANUAL 仲裁
 -> 底盘控制
--> 逆运动学 / 轮速同比缩放 / 速度前馈 + 速度 PID
+-> 逆运动学 / 轮速同比缩放 / 速度前馈 + 速度 PID / 回中主动刹车
 -> CAN1 -> C620 -> M3508
 ```
 
@@ -35,6 +36,7 @@ DR16/DBUS
 
 - 架构：[docs/architecture.md](docs/architecture.md)
 - 控制与遥控映射：[docs/control.md](docs/control.md)
+- 回中主动刹车整定：[docs/brake_tuning.md](docs/brake_tuning.md)
 - IMU 与车体系：[docs/imu.md](docs/imu.md)
 - USB CDC 协议：[docs/telemetry.md](docs/telemetry.md)
 - 辨识与整定：[docs/identification.md](docs/identification.md)
@@ -58,6 +60,16 @@ DR16/DBUS
   - [tools/ffid_identify.py](tools/ffid_identify.py)
 - PID 整定：
   - [tools/pid_tune.py](tools/pid_tune.py)
+- 回中主动刹车采集：
+  - [tools/brake_capture.py](tools/brake_capture.py)
+- 回中主动刹车离散分析：
+  - [tools/brake_analyze.py](tools/brake_analyze.py)
+- 回中主动刹车连续优化：
+  - [tools/brake_optimize.py](tools/brake_optimize.py)
+- IMU 静止水平标定：
+  - [tools/imu_static_level_calibrate.py](tools/imu_static_level_calibrate.py)
+- IMU yaw 标定：
+  - [tools/imu_yaw_calibrate.py](tools/imu_yaw_calibrate.py)
 
 分析脚本优先用项目内虚拟环境执行：
 
