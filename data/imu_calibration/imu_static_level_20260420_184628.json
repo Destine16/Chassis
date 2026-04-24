@@ -1,0 +1,83 @@
+{
+  "sample_count_total": 1599,
+  "sample_count_used": 1573,
+  "outlier_count": 26,
+  "target_acc_unit": [
+    0.0,
+    0.0,
+    1.0
+  ],
+  "mean_acc_before_mps2": [
+    -0.14347483071238656,
+    -0.19603815937659883,
+    9.794395955444065
+  ],
+  "mean_gyro_before_radps": [
+    0.0011898726224899292,
+    -0.0036007699219762182,
+    0.0005573506863137679
+  ],
+  "std_acc_used_mps2": [
+    0.03206793016832814,
+    0.03381693264064078,
+    0.033916483290827304
+  ],
+  "std_gyro_used_radps": [
+    0.009426258234953114,
+    0.008510114517743769,
+    0.012117947251276923
+  ],
+  "measured_gravity_mps2": 9.797408234783257,
+  "horizontal_acc_before_mps2": 0.24293206247778976,
+  "horizontal_acc_after_mps2": 2.5871240558249447e-17,
+  "tilt_before_rad": 0.024798085039678577,
+  "tilt_before_deg": 1.4208256127800891,
+  "tilt_after_rad": 2.6406208599535595e-18,
+  "tilt_after_deg": 1.51296430569545e-16,
+  "roll_correction_rad": -0.020012667246407566,
+  "pitch_correction_rad": 0.014644685189571415,
+  "yaw_correction_rad": -0.0001465471157238929,
+  "roll_correction_deg": -1.1466413700188522,
+  "pitch_correction_deg": 0.839078653660186,
+  "yaw_correction_deg": -0.008396531230794327,
+  "rotation_matrix_chassis_level": [
+    [
+      0.9998927577774588,
+      -0.0001465314007344679,
+      0.014644161728712593
+    ],
+    [
+      -0.0001465314007344679,
+      0.9997997854679582,
+      0.02000918555997434
+    ],
+    [
+      -0.014644161728712593,
+      -0.02000918555997434,
+      0.999692543245417
+    ]
+  ],
+  "corrected_mean_acc_mps2": [
+    2.466221129225621e-17,
+    7.816420037262684e-18,
+    9.797408234783257
+  ],
+  "apply_note": "corrected_vec = rotation_matrix_chassis_level * current_chassis_vec",
+  "metadata": {
+    "port": "/dev/ttyACM0",
+    "duration_s": 8.0,
+    "warmup_s": 1.0,
+    "gyro_static_threshold_radps": 0.08,
+    "acc_norm_min_mps2": 7.0,
+    "acc_norm_max_mps2": 12.5,
+    "mad_threshold": 4.0,
+    "counters": {
+      "parsed_frames": 1599,
+      "accepted": 1599,
+      "rejected_imu_invalid": 0,
+      "rejected_imu_fault": 0,
+      "rejected_motion": 0,
+      "rejected_acc_norm": 0
+    }
+  }
+}

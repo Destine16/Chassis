@@ -1,0 +1,77 @@
+{
+  "recommendation": {
+    "recommended_k_brake": 1189.1924075946263,
+    "recommended_method": "quadratic",
+    "recommended_cost": 1.2269580738991326,
+    "best_measured_k_brake": 1200.0,
+    "best_measured_cost": 1.2055515571413484,
+    "bootstrap": {
+      "count": 500,
+      "k_median": 1189.1851500073312,
+      "k_ci95": [
+        948.9601588742245,
+        1200.0
+      ],
+      "k_std": 80.48278685018265
+    },
+    "cost_mode": "peak-normalized",
+    "k_bounds": [
+      0.0,
+      1200.0
+    ],
+    "measured_k_bounds": [
+      0.0,
+      1200.0
+    ],
+    "valid_trials": 25,
+    "total_trials": 35
+  },
+  "fits": {
+    "quadratic": {
+      "valid": true,
+      "method": "quadratic",
+      "k_opt": 1189.1924075946263,
+      "cost_opt": 1.2269580738991326,
+      "coeff": [
+        7.130757454607044e-07,
+        -0.001695968525083496,
+        2.2353745206735076
+      ],
+      "r2": 0.9743490129578606
+    },
+    "pchip": {
+      "valid": true,
+      "method": "pchip",
+      "k_opt": 1200.0,
+      "cost_opt": 1.2055515571413487
+    }
+  },
+  "args": {
+    "csv": [
+      "data/brake/brake_k0_forward_20260423_230003.csv",
+      "data/brake/brake_k1000_forward_20260424_163531.csv",
+      "data/brake/brake_k1200_forward_20260424_163810.csv",
+      "data/brake/brake_k200_forward_20260423_230704.csv",
+      "data/brake/brake_k400_forward_20260423_231010.csv",
+      "data/brake/brake_k600_forward_20260423_231214.csv",
+      "data/brake/brake_k800_forward_20260423_231403.csv"
+    ],
+    "output_dir": "data/brake/optimize_forward_k0_1200_strict005",
+    "method": "auto",
+    "cost_mode": "peak-normalized",
+    "k_min": null,
+    "k_max": null,
+    "bootstrap": 500,
+    "seed": 7,
+    "grid_count": 2001,
+    "min_fit_r2": 0.2,
+    "min_start_speed": 0.25,
+    "stop_speed": 0.05,
+    "stop_hold_s": 0.25,
+    "min_moving_s": 0.35,
+    "max_stop_time_s": 3.0,
+    "max_bad_flag_frac": 0.05,
+    "max_yaw_equiv_ratio": 0.05,
+    "current_limit": 4000.0
+  }
+}

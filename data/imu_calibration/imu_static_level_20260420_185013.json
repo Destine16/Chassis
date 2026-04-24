@@ -1,0 +1,83 @@
+{
+  "sample_count_total": 1600,
+  "sample_count_used": 1600,
+  "outlier_count": 0,
+  "target_acc_unit": [
+    0.0,
+    0.0,
+    1.0
+  ],
+  "mean_acc_before_mps2": [
+    0.007319267299026251,
+    0.020497614587657153,
+    9.79495942234993
+  ],
+  "mean_gyro_before_radps": [
+    0.0006351559761887593,
+    -0.0033693975597081406,
+    -6.240965821461941e-05
+  ],
+  "std_acc_used_mps2": [
+    0.031237330125295164,
+    0.028508330061807446,
+    0.03211591898096692
+  ],
+  "std_gyro_used_radps": [
+    0.009225814323545828,
+    0.00838581086206073,
+    0.011829051505915173
+  ],
+  "measured_gravity_mps2": 9.794983604343564,
+  "horizontal_acc_before_mps2": 0.021765198771863545,
+  "horizontal_acc_after_mps2": 2.322041806854521e-18,
+  "tilt_before_rad": 0.002222077908700058,
+  "tilt_before_deg": 0.1273156859177696,
+  "tilt_after_rad": 2.3706438934975e-19,
+  "tilt_after_deg": 1.3582788982586777e-17,
+  "roll_correction_rad": 0.0020926666239637483,
+  "pitch_correction_rad": -0.0007472465780272344,
+  "yaw_correction_rad": -7.818693085503975e-07,
+  "roll_correction_deg": 0.11990096548101328,
+  "pitch_correction_deg": -0.04281407517655369,
+  "yaw_correction_deg": -4.47978115107497e-05,
+  "rotation_matrix_chassis_level": [
+    [
+      0.9999997208109832,
+      -7.818690902612333e-07,
+      -0.0007472465084862967
+    ],
+    [
+      -7.818690902612333e-07,
+      0.9999978103749165,
+      -0.002092664512329304
+    ],
+    [
+      0.0007472465084862967,
+      0.002092664512329304,
+      0.9999975311858997
+    ]
+  ],
+  "corrected_mean_acc_mps2": [
+    9.361897823977159e-19,
+    -2.124953374574211e-18,
+    9.794983604343566
+  ],
+  "apply_note": "corrected_vec = rotation_matrix_chassis_level * current_chassis_vec",
+  "metadata": {
+    "port": "/dev/ttyACM0",
+    "duration_s": 8.0,
+    "warmup_s": 1.0,
+    "gyro_static_threshold_radps": 0.08,
+    "acc_norm_min_mps2": 7.0,
+    "acc_norm_max_mps2": 12.5,
+    "mad_threshold": 4.0,
+    "counters": {
+      "parsed_frames": 1600,
+      "accepted": 1600,
+      "rejected_imu_invalid": 0,
+      "rejected_imu_fault": 0,
+      "rejected_motion": 0,
+      "rejected_acc_norm": 0
+    }
+  }
+}

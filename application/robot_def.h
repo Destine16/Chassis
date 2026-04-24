@@ -90,6 +90,19 @@
 #define APP_CFG_SPEED_PID_INT_SEP_ERR_RADPS    3.00f
 
 /*
+ * 遥控回中主动刹车默认参数。
+ * 当前默认 k_brake 来自 forward 落地制动实验的连续拟合结果；
+ * 后续实车验证时仍可用 GDB 在线修改 g_ctrl_chassis_brake_param.k_brake。
+ */
+#define APP_CFG_BRAKE_ENABLE                   1U
+#define APP_CFG_BRAKE_K_DEFAULT                1030.0f
+#define APP_CFG_BRAKE_CURRENT_LIMIT            4000.0f
+#define APP_CFG_BRAKE_ENTER_CMD_V_MPS          0.03f
+#define APP_CFG_BRAKE_ENTER_CMD_WZ_RADPS       0.06f
+#define APP_CFG_BRAKE_ENTER_WHEEL_RADPS        0.50f
+#define APP_CFG_BRAKE_EXIT_WHEEL_RADPS         0.25f
+
+/*
  * 轮速参考统一饱和上限。
  * 当前按现有 vx/vy/wz 包络反推，单轮最坏情况约 22.6 rad/s，
  * 这里保留约 20% 调试余量，先收紧到 28 rad/s，避免保护过松。

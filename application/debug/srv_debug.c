@@ -29,6 +29,8 @@ void srv_debug_refresh(void)
     srv_motor_get_feedback_all(g_debug_snapshot.motors);
     g_debug_snapshot.pid_param = g_ctrl_chassis_speed_pid_param;
     g_debug_snapshot.ff_param = g_ctrl_chassis_speed_ff_param;
+    g_debug_snapshot.brake_param = g_ctrl_chassis_brake_param;
+    g_debug_snapshot.brake_state = ctrl_chassis_get_brake_state();
     drv_dbus_get_stats(&g_debug_snapshot.dbus);
     drv_can_motor_get_stats(&g_debug_snapshot.can);
     drv_nav_proto_get_stats(&g_debug_snapshot.nav_tx);

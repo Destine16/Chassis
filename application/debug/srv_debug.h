@@ -21,6 +21,8 @@ typedef struct
     motor_feedback_t motors[COMMON_WHEEL_COUNT];
     ctrl_chassis_speed_pid_param_t pid_param;
     ctrl_chassis_speed_ff_param_t ff_param;
+    ctrl_chassis_brake_param_t brake_param;
+    ctrl_chassis_brake_state_t brake_state;
     drv_dbus_stats_t dbus;
     drv_can_motor_stats_t can;
     drv_nav_proto_stats_t nav_tx;

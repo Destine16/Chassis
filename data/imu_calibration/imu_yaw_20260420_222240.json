@@ -1,0 +1,72 @@
+{
+  "sample_count_total": 21150,
+  "fit_sample_count_initial": 6517,
+  "fit_sample_count_used": 5888,
+  "outlier_count": 629,
+  "sample_period_s": 0.004999999999999005,
+  "sample_rate_hz": 200.0000000000398,
+  "lowpass_hz": 3.0,
+  "acc_bias_xy_mps2": [
+    -0.18686653627979968,
+    0.021821869807683202
+  ],
+  "yaw_correction_rad": -0.01726387624610295,
+  "yaw_correction_deg": -0.989147246937854,
+  "yaw_first_pass_deg": -1.2249691298531327,
+  "residual_mean_deg": 0.9081606899034128,
+  "residual_mae_deg": 8.638078134744008,
+  "residual_rmse_deg": 11.98055191829312,
+  "residual_before_mae_deg": 8.659371767258492,
+  "residual_before_rmse_deg": 11.946356233205647,
+  "cosine_before": 0.9829795990928982,
+  "cosine_after": 0.9830083576419612,
+  "mean_imu_acc_norm_used_mps2": 0.7658401367155976,
+  "mean_odom_acc_norm_used_mps2": 0.7491997707289129,
+  "rotation_matrix_yaw": [
+    [
+      0.9998509829896383,
+      0.017263018700508326,
+      0.0
+    ],
+    [
+      -0.017263018700508326,
+      0.9998509829896383,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "rotation_matrix_total_yaw_level": [
+    [
+      0.9997412271737013,
+      0.01711305282823437,
+      0.014987398444016304
+    ],
+    [
+      -0.01740767694107832,
+      0.9996533278672786,
+      0.019753401413186385
+    ],
+    [
+      -0.014644161728712593,
+      -0.02000918555997434,
+      0.999692543245417
+    ]
+  ],
+  "apply_note": "imu_final = rotation_matrix_yaw * rotation_matrix_chassis_level * imu_from_elec",
+  "metadata": {
+    "port": "/dev/ttyACM0",
+    "duration_s": 0.0,
+    "warmup_s": 1.0,
+    "level_matrix_source": "data/imu_calibration/imu_static_level_20260420_184628.json",
+    "counters": {
+      "parsed_frames": 21150,
+      "accepted": 21150,
+      "rejected_imu": 0,
+      "rejected_wheel": 0
+    }
+  }
+}

@@ -1,6 +1,7 @@
 #include "ctrl_chassis.h"
 
 #include <math.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "robot_def.h"
@@ -19,6 +20,7 @@ typedef struct
     ramp_filter_t vx_ramp;
     ramp_filter_t vy_ramp;
     ramp_filter_t wz_ramp;
+    ctrl_chassis_brake_state_t brake_state;
 } ctrl_chassis_context_t;
 
 static ctrl_chassis_context_t g_ctrl_ctx;
@@ -68,6 +70,73 @@ ctrl_chassis_speed_ff_param_t g_ctrl_chassis_speed_ff_param = {
     .k_s = 425.378f,
     .k_v = 1.14785f,
 };
+
+/*
+ * 回中主动刹车默认关闭有效输出：enable=1 但 k_brake=0。
+ * 落地实验时直接在 GDB 里改 k_brake，即可比较不同制动力。
+ */
+ctrl_chassis_brake_param_t g_ctrl_chassis_brake_param = {
+    .enable = APP_CFG_BRAKE_ENABLE,
+    .k_brake = APP_CFG_BRAKE_K_DEFAULT,
+    .current_limit = APP_CFG_BRAKE_CURRENT_LIMIT,
+    .enter_cmd_v_mps = APP_CFG_BRAKE_ENTER_CMD_V_MPS,
+    .enter_cmd_wz_radps = APP_CFG_BRAKE_ENTER_CMD_WZ_RADPS,
+    .enter_wheel_speed_radps = APP_CFG_BRAKE_ENTER_WHEEL_RADPS,
+    .exit_wheel_speed_radps = APP_CFG_BRAKE_EXIT_WHEEL_RADPS,
+};
+
+static void ctrl_chassis_clear_brake_state(void)
+{
+    memset(&g_ctrl_ctx.brake_state, 0, sizeof(g_ctrl_ctx.brake_state));
+}
+
+static bool ctrl_chassis_cmd_near_zero(const chassis_cmd_t *cmd)
+{
+    return (fabsf(cmd->vx_mps) <= g_ctrl_chassis_brake_param.enter_cmd_v_mps) &&
+           (fabsf(cmd->vy_mps) <= g_ctrl_chassis_brake_param.enter_cmd_v_mps) &&
+           (fabsf(cmd->wz_radps) <= g_ctrl_chassis_brake_param.enter_cmd_wz_radps);
+}
+
+static float ctrl_chassis_read_actual_wheel_speeds(float actual_wheel_speed_radps[COMMON_WHEEL_COUNT])
+{
+    float max_abs_speed = 0.0f;
+    uint32_t index = 0U;
+
+    while (index < COMMON_WHEEL_COUNT)
+    {
+        motor_feedback_t feedback = srv_motor_get_feedback((chassis_wheel_id_t)index);
+        float motor_sign = ctrl_chassis_motor_sign((chassis_wheel_id_t)index);
+        float signed_feedback_wheel_speed = 0.0f;
+
+        if (feedback.online)
+            signed_feedback_wheel_speed = motor_sign * feedback.wheel_speed_radps;
+
+        actual_wheel_speed_radps[index] = signed_feedback_wheel_speed;
+
+        if (fabsf(signed_feedback_wheel_speed) > max_abs_speed)
+            max_abs_speed = fabsf(signed_feedback_wheel_speed);
+
+        index++;
+    }
+
+    return max_abs_speed;
+}
+
+static bool ctrl_chassis_should_active_brake(const chassis_cmd_t *final_cmd, float max_abs_wheel_speed_radps)
+{
+    float wheel_threshold = g_ctrl_chassis_brake_param.enter_wheel_speed_radps;
+
+    if ((g_ctrl_chassis_brake_param.enable == 0U) || (g_ctrl_chassis_brake_param.k_brake <= 0.0f))
+        return false;
+
+    if (!ctrl_chassis_cmd_near_zero(final_cmd))
+        return false;
+
+    if (g_ctrl_ctx.brake_state.active != 0U)
+        wheel_threshold = g_ctrl_chassis_brake_param.exit_wheel_speed_radps;
+
+    return max_abs_wheel_speed_radps > wheel_threshold;
+}
 
 static float ctrl_chassis_compute_speed_ff(float speed_ref_radps)
 {
@@ -121,6 +190,7 @@ void ctrl_chassis_init(void)
     ramp_init(&g_ctrl_ctx.vx_ramp, APP_CFG_CMD_RAMP_VX_MPS2);
     ramp_init(&g_ctrl_ctx.vy_ramp, APP_CFG_CMD_RAMP_VY_MPS2);
     ramp_init(&g_ctrl_ctx.wz_ramp, APP_CFG_CMD_RAMP_WZ_RADPS2);
+    ctrl_chassis_clear_brake_state();
 }
 
 void ctrl_chassis_stop(void)
@@ -140,6 +210,7 @@ void ctrl_chassis_stop(void)
     ramp_reset(&g_ctrl_ctx.vx_ramp, 0.0f);
     ramp_reset(&g_ctrl_ctx.vy_ramp, 0.0f);
     ramp_reset(&g_ctrl_ctx.wz_ramp, 0.0f);
+    ctrl_chassis_clear_brake_state();
     srv_motor_zero_targets();
     srv_chassis_stop();
     (void)drv_can_motor_send_chassis_currents(0, 0, 0, 0);
@@ -156,6 +227,7 @@ void ctrl_chassis_execute_single_wheel_speed(chassis_wheel_id_t wheel_id, float 
 
     memset(&targets, 0, sizeof(targets));
     memset(current_raw, 0, sizeof(current_raw));
+    ctrl_chassis_clear_brake_state();
     ctrl_chassis_sync_speed_pid_params();
 
     if (wheel_id >= COMMON_WHEEL_COUNT)
@@ -197,6 +269,7 @@ void ctrl_chassis_execute(app_mode_t mode, const chassis_cmd_t *final_cmd)
     chassis_cmd_t actual_cmd = {0};
     wheel_targets_t targets;
     float actual_wheel_speed_radps[COMMON_WHEEL_COUNT];
+    float max_abs_wheel_speed_radps = 0.0f;
     int16_t current_raw[COMMON_WHEEL_COUNT];
     float dt_s = 1.0f / (float)APP_CFG_CONTROL_HZ;
     uint32_t index = 0U;
@@ -215,6 +288,47 @@ void ctrl_chassis_execute(app_mode_t mode, const chassis_cmd_t *final_cmd)
     /* 允许调试器直接改全局 PID 参数，下一拍自动同步到四个轮子。 */
     ctrl_chassis_sync_speed_pid_params();
 
+    max_abs_wheel_speed_radps = ctrl_chassis_read_actual_wheel_speeds(actual_wheel_speed_radps);
+
+    if (ctrl_chassis_should_active_brake(final_cmd, max_abs_wheel_speed_radps))
+    {
+        ramp_reset(&g_ctrl_ctx.vx_ramp, 0.0f);
+        ramp_reset(&g_ctrl_ctx.vy_ramp, 0.0f);
+        ramp_reset(&g_ctrl_ctx.wz_ramp, 0.0f);
+        memset(&limited_cmd, 0, sizeof(limited_cmd));
+
+        g_ctrl_ctx.brake_state.active = 1U;
+        g_ctrl_ctx.brake_state.k_brake = g_ctrl_chassis_brake_param.k_brake;
+        g_ctrl_ctx.brake_state.max_abs_wheel_speed_radps = max_abs_wheel_speed_radps;
+
+        while (index < COMMON_WHEEL_COUNT)
+        {
+            float motor_sign = ctrl_chassis_motor_sign((chassis_wheel_id_t)index);
+            float brake_current_limit = fminf(g_ctrl_chassis_brake_param.current_limit, APP_CFG_C620_CURRENT_LIMIT);
+            float brake_current =
+                -g_ctrl_chassis_brake_param.k_brake * actual_wheel_speed_radps[index];
+
+            brake_current = soft_limit_symmetric(brake_current, brake_current_limit);
+            pid_reset(&g_ctrl_ctx.speed_pid[index]);
+            targets.wheel_speed_ref_radps[index] = 0.0f;
+            targets.current_cmd[index] = brake_current;
+            g_ctrl_ctx.brake_state.brake_current_cmd[index] = brake_current;
+            current_raw[index] = drv_m3508_current_cmd_to_raw(motor_sign * brake_current);
+            index++;
+        }
+
+        omni_chassis_kinematics_forward(actual_wheel_speed_radps, &actual_cmd);
+        (void)drv_can_motor_send_chassis_currents(current_raw[0], current_raw[1], current_raw[2], current_raw[3]);
+        srv_motor_set_targets(targets.wheel_speed_ref_radps, targets.current_cmd);
+        srv_chassis_set_final_cmd(final_cmd);
+        srv_chassis_set_limited_cmd(&limited_cmd);
+        srv_chassis_set_actual_cmd(&actual_cmd);
+        srv_chassis_set_wheel_targets(&targets);
+        return;
+    }
+
+    ctrl_chassis_clear_brake_state();
+
     /* 先做命令斜坡，再做幅值限制。 */
     limited_cmd.vx_mps = ramp_apply(&g_ctrl_ctx.vx_ramp, limited_cmd.vx_mps, dt_s);
     limited_cmd.vy_mps = ramp_apply(&g_ctrl_ctx.vy_ramp, limited_cmd.vy_mps, dt_s);
@@ -228,20 +342,17 @@ void ctrl_chassis_execute(app_mode_t mode, const chassis_cmd_t *final_cmd)
 
     while (index < COMMON_WHEEL_COUNT)
     {
-        motor_feedback_t feedback = srv_motor_get_feedback((chassis_wheel_id_t)index);
         float motor_sign = ctrl_chassis_motor_sign((chassis_wheel_id_t)index);
-        float signed_feedback_wheel_speed = motor_sign * feedback.wheel_speed_radps;
         float ff_cmd = ctrl_chassis_compute_speed_ff(targets.wheel_speed_ref_radps[index]);
 
         /* 底盘轮第一版只做速度外环，PID 输出直接作为 C620 电流给定。 */
         float pid_cmd = pid_update(&g_ctrl_ctx.speed_pid[index],
                                    targets.wheel_speed_ref_radps[index],
-                                   signed_feedback_wheel_speed,
+                                   actual_wheel_speed_radps[index],
                                    dt_s);
         float current_cmd = ff_cmd + pid_cmd;
 
         current_cmd = soft_limit_symmetric(current_cmd, APP_CFG_C620_CURRENT_LIMIT);
-        actual_wheel_speed_radps[index] = signed_feedback_wheel_speed;
         targets.current_cmd[index] = current_cmd;
         current_raw[index] = drv_m3508_current_cmd_to_raw(motor_sign * current_cmd);
         index++;
@@ -256,4 +367,9 @@ void ctrl_chassis_execute(app_mode_t mode, const chassis_cmd_t *final_cmd)
     srv_chassis_set_limited_cmd(&limited_cmd);
     srv_chassis_set_actual_cmd(&actual_cmd);
     srv_chassis_set_wheel_targets(&targets);
+}
+
+ctrl_chassis_brake_state_t ctrl_chassis_get_brake_state(void)
+{
+    return g_ctrl_ctx.brake_state;
 }

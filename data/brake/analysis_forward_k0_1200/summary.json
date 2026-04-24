@@ -1,0 +1,29 @@
+{
+  "recommendation": {
+    "recommended_k_brake": 1000.0,
+    "mean_score": 1.4293987660363996,
+    "valid_trials": 5,
+    "reason": "lowest mean score among valid K_brake groups"
+  },
+  "args": {
+    "csv": [
+      "data/brake/brake_k0_forward_20260423_230003.csv",
+      "data/brake/brake_k1000_forward_20260424_163531.csv",
+      "data/brake/brake_k1200_forward_20260424_163810.csv",
+      "data/brake/brake_k200_forward_20260423_230704.csv",
+      "data/brake/brake_k400_forward_20260423_231010.csv",
+      "data/brake/brake_k600_forward_20260423_231214.csv",
+      "data/brake/brake_k800_forward_20260423_231403.csv"
+    ],
+    "output_dir": "data/brake/analysis_forward_k0_1200",
+    "min_start_speed": 0.25,
+    "stop_speed": 0.05,
+    "stop_hold_s": 0.25,
+    "min_moving_s": 0.35,
+    "max_stop_time_s": 3.0,
+    "max_bad_flag_frac": 0.05,
+    "max_yaw_equiv_ratio": 0.65,
+    "current_limit": 4000.0,
+    "min_trials_per_k": 2
+  }
+}
