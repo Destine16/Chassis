@@ -1,90 +1,94 @@
-# 底盘工程
+# Chassis Project
 
-基于 `STM32F405 + M3508 + DR16/DBUS + CAN1 + USB CDC + BMI088` 的四轮全向底盘控制工程。
+English | [简体中文](README_zh.md)
 
-当前系统边界：
-- 底盘移动只由遥控器控制
-- 电控通过 `USB CDC` 向导航发送轮速惯导观测
+A four-wheel omni chassis control project based on `STM32F405 + M3508 + DR16/DBUS + CAN1 + USB CDC + BMI088`.
 
-## 快速概览
+Current system boundaries:
 
-- 车体系：`+vx = 前`、`+vy = 左`、`+wz = 逆时针`
-- 底盘：`45°` 四全向轮
-- 轮半径：`81.5 mm`
-- 轮对角线：`425 mm`
-- 四轮 ESC ID：
+- Chassis motion is controlled only by the remote controller.
+- The embedded controller sends wheel-speed and inertial observations to navigation through `USB CDC`.
+
+## Quick Overview
+
+- Body frame: `+vx = forward`, `+vy = left`, `+wz = counter-clockwise`
+- Chassis: `45°` four-wheel omni chassis
+- Wheel radius: `81.5 mm`
+- Wheel diagonal distance: `425 mm`
+- ESC IDs:
   - `front_left = 2`
   - `front_right = 1`
   - `rear_left = 3`
   - `rear_right = 4`
-- 遥控器：`USART3_RX(PB11)`，`100000 / 9bit / Even / 1 stop bit`
-- 导航观测链：`USB CDC @ 200 Hz`
-- 回中主动刹车：当前默认 `K_brake = 1030`
+- Remote controller: `USART3_RX(PB11)`, `100000 / 9-bit / Even / 1 stop bit`
+- Navigation observation link: `USB CDC @ 200 Hz`
+- Center-return active braking: default `K_brake = 1030`
 
-## 主链路
+## Main Pipeline
 
 ```text
 DR16/DBUS
--> RC 服务层
--> SAFE / MANUAL 仲裁
--> 底盘控制
--> 逆运动学 / 轮速同比缩放 / 速度前馈 + 速度 PID / 回中主动刹车
+-> RC service layer
+-> SAFE / MANUAL arbitration
+-> chassis control
+-> inverse kinematics / wheel-speed proportional scaling / velocity feedforward + velocity PID / center-return active braking
 -> CAN1 -> C620 -> M3508
 ```
 
-## 文档入口
+## Documentation
 
-- 架构：[docs/architecture.md](docs/architecture.md)
-- 控制与遥控映射：[docs/control.md](docs/control.md)
-- 回中主动刹车整定：[docs/brake_tuning.md](docs/brake_tuning.md)
-- IMU 与车体系：[docs/imu.md](docs/imu.md)
-- USB CDC 协议：[docs/telemetry.md](docs/telemetry.md)
-- 辨识与整定：[docs/identification.md](docs/identification.md)
+- Architecture: [docs/architecture.md](docs/architecture.md)
+- Control and remote mapping: [docs/control.md](docs/control.md)
+- Center-return active braking tuning: [docs/brake_tuning.md](docs/brake_tuning.md)
+- IMU and body frame: [docs/imu.md](docs/imu.md)
+- USB CDC protocol: [docs/telemetry.md](docs/telemetry.md)
+- Identification and tuning: [docs/identification.md](docs/identification.md)
 
-已有专项文档：
+Specialized documents:
+
 - [docs/sysid_gdb.md](docs/sysid_gdb.md)
 - [docs/sysid_identify.md](docs/sysid_identify.md)
 - [docs/pid_tune.md](docs/pid_tune.md)
 
-## 关键脚本
+## Key Scripts
 
-- USB CDC 本机监视：
+- USB CDC local monitor:
   - [tools/nav_cdc_monitor.py](tools/nav_cdc_monitor.py)
-- PRBS dump 转 CSV：
+- PRBS dump to CSV:
   - [tools/sysid_dump_to_csv.py](tools/sysid_dump_to_csv.py)
-- PRBS 模型辨识：
+- PRBS model identification:
   - [tools/sysid_identify.py](tools/sysid_identify.py)
-- FFID dump 转 CSV：
+- FFID dump to CSV:
   - [tools/ffid_dump_to_csv.py](tools/ffid_dump_to_csv.py)
-- FFID 前馈拟合：
+- FFID feedforward fitting:
   - [tools/ffid_identify.py](tools/ffid_identify.py)
-- PID 整定：
+- PID tuning:
   - [tools/pid_tune.py](tools/pid_tune.py)
-- 回中主动刹车采集：
+- Center-return active braking capture:
   - [tools/brake_capture.py](tools/brake_capture.py)
-- 回中主动刹车离散分析：
+- Center-return active braking discrete analysis:
   - [tools/brake_analyze.py](tools/brake_analyze.py)
-- 回中主动刹车连续优化：
+- Center-return active braking continuous optimization:
   - [tools/brake_optimize.py](tools/brake_optimize.py)
-- IMU 静止水平标定：
+- IMU static level calibration:
   - [tools/imu_static_level_calibrate.py](tools/imu_static_level_calibrate.py)
-- IMU yaw 标定：
+- IMU yaw calibration:
   - [tools/imu_yaw_calibrate.py](tools/imu_yaw_calibrate.py)
 
-分析脚本优先用项目内虚拟环境执行：
+Prefer the project virtual environment for analysis scripts:
 
 ```bash
 .venv/bin/python tools/...
 ```
 
-## 编译
+## Build
 
 ```bash
 cmake -S . -B build/Debug -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
 cmake --build build/Debug -j
 ```
 
-发布构建默认关闭实验代码（`PRBS / FFID / wheeltest`）。如需重新打开：
+Release builds disable experimental code by default (`PRBS / FFID / wheeltest`). To enable it again:
 
 ```bash
 cmake -S . -B build/Debug \
@@ -92,7 +96,7 @@ cmake -S . -B build/Debug \
   -DCHASSIS_ENABLE_EXPERIMENTS=ON
 ```
 
-生成文件：
+Build artifacts:
 
 ```text
 build/Debug/Chassis.elf
